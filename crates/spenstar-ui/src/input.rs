@@ -53,3 +53,18 @@ impl<'a> ShortcutGuard<'a> {
             && self.ctx.input_mut(|input| input.consume_shortcut(shortcut))
     }
 }
+
+pub(crate) fn lock_arrows(response: &egui::Response, horizontal: bool, vertical: bool) {
+    if response.has_focus() {
+        response.ctx.memory_mut(|memory| {
+            memory.set_focus_lock_filter(
+                response.id,
+                egui::EventFilter {
+                    horizontal_arrows: horizontal,
+                    vertical_arrows: vertical,
+                    ..Default::default()
+                },
+            )
+        });
+    }
+}

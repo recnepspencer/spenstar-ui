@@ -340,7 +340,7 @@ pub(crate) fn mix(a: Color32, b: Color32, factor: f32) -> Color32 {
     )
 }
 
-fn luminance(color: Color32) -> f32 {
+pub(crate) fn luminance(color: Color32) -> f32 {
     let [r, g, b, _] = color.to_array().map(|v| {
         let c = f32::from(v) / 255.;
         if c <= 0.04045 {
