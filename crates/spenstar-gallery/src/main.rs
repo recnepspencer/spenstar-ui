@@ -2,7 +2,10 @@
 #![forbid(unsafe_code)]
 mod buttons;
 mod dashboard;
+mod forms;
 mod icons;
+mod navigation;
+mod pickers;
 #[cfg(test)]
 mod tests;
 mod tokens;
@@ -16,79 +19,14 @@ use spenstar_ui::{
     icon::Icon,
     input::ShortcutGuard,
     layout::{
-        AppShell, CollapseMode, Inspector, MenuItem, MenuSection, PageHeader, SearchTrigger,
-        Separator, SidebarEvent, SidebarPage, SidebarVariant, Toolbar,
+        AppShell, CollapseMode, Inspector, PageHeader, SearchTrigger, Separator, SidebarEvent,
+        SidebarPage, SidebarVariant, Toolbar,
     },
     theme::{Accent, Mode},
     typography::Type,
 };
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum Page {
-    #[default]
-    Overview,
-    Buttons,
-    Icons,
-    Tokens,
-}
-
-impl Page {
-    const ALL: [Self; 4] = [Self::Overview, Self::Buttons, Self::Icons, Self::Tokens];
-
-    fn id(self) -> &'static str {
-        match self {
-            Self::Overview => "overview",
-            Self::Buttons => "buttons",
-            Self::Icons => "icons",
-            Self::Tokens => "tokens",
-        }
-    }
-
-    fn title(self) -> &'static str {
-        match self {
-            Self::Overview => "Dashboard Overview",
-            Self::Buttons => "Buttons & Triggers",
-            Self::Icons => "SVG Icon Browser",
-            Self::Tokens => "Tokens & Typography",
-        }
-    }
-
-    fn description(self) -> &'static str {
-        match self {
-            Self::Overview => "Monitor deliveries, activity, and exceptions across your workspace.",
-            Self::Buttons => {
-                "Try each treatment and see how states, icons, and grouping work together."
-            }
-            Self::Icons => {
-                "Browse the bundled Lucide collection and preview it at any display scale."
-            }
-            Self::Tokens => "Inspect the colors and type styles used throughout the gallery.",
-        }
-    }
-}
-
-const COMPONENTS: &[MenuItem<'_>] = &[
-    MenuItem::new("buttons", "Buttons & Triggers", Icon::Command),
-    MenuItem::new("icons", "SVG Icon Browser", Icon::Grid).badge(Icon::ALL.len()),
-    MenuItem::new("tokens", "Tokens & Typography", Icon::Palette),
-];
-const NAVIGATION: &[MenuSection<'_>] = &[
-    MenuSection {
-        label: "Workspace",
-        items: &[
-            MenuItem::new("overview", "Overview", Icon::LayoutDashboard),
-            MenuItem::new("library", "Component library", Icon::Layers),
-        ],
-    },
-    MenuSection {
-        label: "Gallery",
-        items: &[MenuItem::new("components", "Components", Icon::Package).group(COMPONENTS)],
-    },
-];
-const LIBRARY: &[MenuSection<'_>] = &[MenuSection {
-    label: "Component library",
-    items: COMPONENTS,
-}];
+use navigation::{LIBRARY, NAVIGATION, Page};
 
 struct Gallery {
     shell: AppShell,
@@ -101,6 +39,8 @@ struct Gallery {
     buttons: buttons::Demo,
     icons: icons::Browser,
     dashboard: dashboard::Dashboard,
+    forms: forms::Demo,
+    pickers: pickers::Demo,
 }
 
 impl Gallery {
@@ -118,6 +58,8 @@ impl Gallery {
             buttons: buttons::Demo::default(),
             icons: icons::Browser::default(),
             dashboard: dashboard::Dashboard::default(),
+            forms: forms::Demo::default(),
+            pickers: pickers::Demo::default(),
         }
     }
 
@@ -127,6 +69,7 @@ impl Gallery {
         let mut sidebar_settings = self.shell.sidebar;
         let mut requested_theme = None;
         let mut open_command = false;
+        let mut swatch_accent = None;
         let mut requested_mode = None;
         let mut next_page = None;
         let mut settings = |ui: &mut Ui| {
@@ -264,6 +207,8 @@ impl Gallery {
                             Page::Buttons => self.buttons.show(ui),
                             Page::Icons => self.icons.show(ui),
                             Page::Tokens => tokens::show(ui),
+                            Page::Forms => swatch_accent = self.forms.show(ui, self.theme.accent),
+                            Page::Pickers => self.pickers.show(ui),
                         }
                         ui.add_space(12.);
                     });
@@ -295,6 +240,10 @@ impl Gallery {
         if let Some(page) = next_page {
             self.page = page;
             ui.ctx().request_repaint();
+        }
+        if let Some(accent) = swatch_accent {
+            let mode = requested_theme.map_or(self.theme.mode, |theme| theme.mode);
+            requested_theme = Some(Theme::new(mode, accent));
         }
         if let Some(theme) = requested_theme
             && (theme.mode != self.theme.mode || theme.accent != self.theme.accent)

@@ -34,6 +34,24 @@ fn each_gallery_page_paints_content_at_desktop_and_compact_widths() {
                 Page::Tokens,
                 ["Semantic colors", "Background", "Border", "Action palettes"],
             ),
+            (
+                Page::Forms,
+                [
+                    "Text & validation",
+                    "Workspace name",
+                    "Choice controls",
+                    "Select all",
+                ],
+            ),
+            (
+                Page::Pickers,
+                [
+                    "Dropdowns & autocomplete",
+                    "Primary facility",
+                    "Inline calendar",
+                    "Date pickers",
+                ],
+            ),
         ] {
             gallery.page = page;
             let mut frame = ctx.run_ui(
@@ -72,4 +90,56 @@ fn each_gallery_page_paints_content_at_desktop_and_compact_widths() {
             }
         }
     }
+}
+
+#[test]
+fn palette_click_updates_the_live_gallery_theme() {
+    use eframe::egui::{Event, Modifiers, PointerButton};
+
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(&ctx);
+    gallery.page = Page::Forms;
+    let mut render = |events| {
+        let mut frame = ctx.run_ui(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0., 0.), vec2(1232., 1280.))),
+                events,
+                ..Default::default()
+            },
+            |ui| gallery.show(ui),
+        );
+        frame.textures_delta.clear();
+        frame
+    };
+    let frame = render(vec![]);
+    let bounds = frame
+        .platform_output
+        .accesskit_update
+        .as_ref()
+        .and_then(|update| {
+            update.nodes.iter().find_map(|(_, node)| {
+                (node.label() == Some("#7C3AED"))
+                    .then(|| node.bounds())
+                    .flatten()
+            })
+        });
+    let Some(bounds) = bounds else {
+        panic!("the violet palette swatch is missing");
+    };
+    let at = pos2(
+        ((bounds.x0 + bounds.x1) * 0.5) as f32,
+        ((bounds.y0 + bounds.y1) * 0.5) as f32,
+    );
+    render(vec![Event::PointerMoved(at)]);
+    for pressed in [true, false] {
+        render(vec![Event::PointerButton {
+            pos: at,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        }]);
+    }
+    assert_eq!(gallery.theme.accent, Accent::Violet);
+    assert_eq!(Theme::current(&ctx).accent, Accent::Violet);
 }
