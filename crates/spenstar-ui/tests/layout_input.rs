@@ -1,6 +1,10 @@
 //! Headless geometry, animation, and input arbitration checks.
 use spenstar_ui::{
-    egui::{self, Context, Event, FullOutput, Id, Key, Modifiers, Pos2, RawInput, Rect, Ui, vec2},
+    button::Button,
+    egui::{
+        self, Context, Event, FullOutput, Id, Key, KeyboardShortcut, Modifiers, Pos2, RawInput,
+        Rect, Sense, Ui, vec2,
+    },
     input::ShortcutGuard,
     layout::{AppShell, CollapseMode, ResponsiveGrid, Sidebar, SplitAxis, SplitPane},
 };
@@ -16,6 +20,49 @@ fn frame(ctx: &Context, events: Vec<Event>, mut show: impl FnMut(&mut Ui)) -> Fu
     );
     output.textures_delta.clear();
     output
+}
+
+#[test]
+fn grid_clips_paint_outsets_to_parent_and_column_gaps() {
+    let ctx = Context::default();
+    for gap in [12., 2.] {
+        frame(&ctx, vec![], |ui| {
+            egui::Frame::new()
+                .inner_margin(egui::Margin::same(16))
+                .show(ui, |ui| {
+                    ui.set_width(240.);
+                    if gap == 2. {
+                        let clip = ui
+                            .clip_rect()
+                            .with_min_x(ui.available_rect_before_wrap().left() - 2.);
+                        ui.shrink_clip_rect(clip);
+                    }
+                    let parent_clip = ui.clip_rect();
+                    let mut cells = Vec::new();
+                    ResponsiveGrid::new(100.).gap(gap).show(ui, 2, |ui, _| {
+                        let (rect, _) =
+                            ui.allocate_exact_size(vec2(ui.available_width(), 30.), Sense::hover());
+                        cells.push((rect, ui.clip_rect()));
+                    });
+                    let [(first, first_clip), (second, second_clip)] = cells.as_slice() else {
+                        panic!("expected two grid cells");
+                    };
+                    assert_eq!(first_clip.right(), second_clip.left());
+                    assert_eq!(first_clip.right() - first.right(), gap * 0.5);
+                    assert_eq!(second.left() - second_clip.left(), gap * 0.5);
+                    assert!(parent_clip.contains_rect(*first_clip));
+                    assert!(parent_clip.contains_rect(*second_clip));
+                    if gap == 12. {
+                        assert!(first_clip.contains_rect(first.expand(4.)));
+                        assert!(second_clip.contains_rect(second.expand(4.)));
+                        assert!(first.left() - first_clip.left() > 4.);
+                        assert!(second_clip.right() - second.right() > 4.);
+                    } else {
+                        assert_eq!(first_clip.left(), parent_clip.left());
+                    }
+                });
+        });
+    }
 }
 
 #[test]
@@ -170,12 +217,13 @@ fn text_input_and_modals_block_background_shortcuts() {
     let modal = Id::unique("test/shortcut-modal");
     frame(&ctx, vec![], |ui| {
         egui::Modal::new(modal).show(ui.ctx(), |ui| {
-            ui.label("Overlay");
+            ui.button("Overlay action").request_focus();
         });
     });
     frame(&ctx, vec![command()], |ui| {
         assert!(!ShortcutGuard::new(ui).allows());
         egui::Modal::new(modal).show(ui.ctx(), |ui| {
+            assert!(ui.button("Overlay action").has_focus());
             assert!(ShortcutGuard::for_overlay(ui).consume(&AppShell::SIDEBAR_SHORTCUT));
         });
         shell.show(ui, |_, _| {}, |_| {}, |_| {}, None);
@@ -187,5 +235,52 @@ fn text_input_and_modals_block_background_shortcuts() {
     frame(&ctx, vec![command()], |ui| {
         shell.show(ui, |_, _| {}, |_| {}, |_| {}, None);
     });
+    assert_eq!(shell.sidebar.mode, CollapseMode::IconRail);
+}
+
+#[test]
+fn modified_shell_shortcut_works_with_a_focused_button() {
+    let ctx = Context::default();
+    spenstar_ui::install(&ctx);
+    let mut shell = AppShell::new("focused-button-shortcuts");
+    frame(&ctx, vec![], |ui| {
+        shell.show(
+            ui,
+            |_, _| {},
+            |_| {},
+            |ui| Button::new("Action").show(ui).request_focus(),
+            None,
+        );
+    });
+    let pressed = |key, modifiers| Event::Key {
+        key,
+        physical_key: Some(key),
+        pressed: true,
+        repeat: false,
+        modifiers,
+    };
+    let plain = KeyboardShortcut::new(Modifiers::NONE, Key::J);
+    frame(
+        &ctx,
+        vec![
+            pressed(Key::J, Modifiers::NONE),
+            pressed(Key::B, Modifiers::COMMAND),
+        ],
+        |ui| {
+            shell.show(
+                ui,
+                |_, _| {},
+                |_| {},
+                |ui| {
+                    assert!(Button::new("Action").show(ui).has_focus());
+                    let guard = ShortcutGuard::new(ui);
+                    assert!(guard.allows());
+                    assert!(!guard.consume(&plain));
+                    assert!(ui.input(|input| input.key_pressed(plain.logical_key)));
+                },
+                None,
+            );
+        },
+    );
     assert_eq!(shell.sidebar.mode, CollapseMode::IconRail);
 }

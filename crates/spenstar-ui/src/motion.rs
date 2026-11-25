@@ -6,6 +6,10 @@ pub const FAST: f32 = 0.14;
 /// Standard transition duration for layout changes, in seconds.
 pub const NORMAL: f32 = 0.22;
 
+const FOCUS_RING_GAP: f32 = 2.;
+const FOCUS_RING_WIDTH: f32 = 2.;
+pub(crate) const FOCUS_RING_OUTSET: f32 = FOCUS_RING_GAP + FOCUS_RING_WIDTH;
+
 /// Animate a binary state and return an eased value between zero and one.
 pub fn eased(ctx: &Context, id: Id, active: bool, seconds: f32) -> f32 {
     let t = ctx.animate_value_with_time(id, f32::from(active), seconds);
@@ -32,9 +36,9 @@ pub fn focus_ring(ui: &Ui, response: &Response, radius: CornerRadius) {
     if response.has_focus() && keyboard {
         let color = crate::Theme::current(ctx).colors.accent.ring;
         ui.painter().rect_stroke(
-            response.rect.expand(2.),
+            response.rect.expand(FOCUS_RING_GAP),
             radius,
-            Stroke::new(2., color),
+            Stroke::new(FOCUS_RING_WIDTH, color),
             StrokeKind::Outside,
         );
     }

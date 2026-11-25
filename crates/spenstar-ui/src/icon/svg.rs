@@ -35,11 +35,19 @@ impl fmt::Display for SvgIconError {
 
 impl Error for SvgIconError {}
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 enum Text {
     Static(&'static str),
     Owned(Arc<str>),
 }
+
+impl PartialEq for Text {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl Eq for Text {}
 
 impl Text {
     fn as_str(&self) -> &str {
@@ -104,7 +112,7 @@ impl SvgIcon {
         let [r, g, b, a] = tint.to_srgba_unmultiplied();
         let color = format!("#{r:02x}{g:02x}{b:02x}{a:02x}");
         let tinted;
-        let source = if source.contains("currentColor") {
+        let source = if current_color_offsets(source).next().is_some() {
             tinted = replace_current_color(source, &color)?;
             &tinted
         } else {
@@ -188,8 +196,8 @@ fn paint_tokens(
 ) {
     let value = &svg[range.clone()];
     let identifier = |c: char| c.is_alphanumeric() || matches!(c, '_' | '-');
-    for (start, token) in value.match_indices("currentColor") {
-        let end = start + token.len();
+    for start in current_color_offsets(value) {
+        let end = start + CURRENT_COLOR.len();
         let before = value[..start].chars().next_back();
         let after = value[end..].chars().next();
         if !before.is_some_and(|c| identifier(c) || matches!(c, '#' | '.'))
@@ -198,6 +206,16 @@ fn paint_tokens(
             tokens.push(range.start + start..range.start + end);
         }
     }
+}
+
+const CURRENT_COLOR: &[u8] = b"currentColor";
+
+fn current_color_offsets(value: &str) -> impl Iterator<Item = usize> + '_ {
+    value
+        .as_bytes()
+        .windows(CURRENT_COLOR.len())
+        .enumerate()
+        .filter_map(|(offset, word)| word.eq_ignore_ascii_case(CURRENT_COLOR).then_some(offset))
 }
 
 fn parse_xml(svg: &str) -> Result<roxmltree::Document<'_>, SvgIconError> {

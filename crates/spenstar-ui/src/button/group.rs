@@ -104,9 +104,11 @@ impl ToggleButtonGroup {
     }
 
     /// Render at the largest member size and update the selected index on activation.
+    /// Out-of-range selections display the last choice as selected.
     pub fn show(self, ui: &mut Ui, selected: &mut usize) -> Vec<Response> {
         let id = ui.make_persistent_id(self.id);
         let count = self.buttons.len();
+        let index = (*selected).min(count.saturating_sub(1));
         let size = self
             .buttons
             .iter()
@@ -127,10 +129,11 @@ impl ToggleButtonGroup {
                         .size(size)
                         .radius(Radius::Md)
                         .variant(Variant::Ghost)
-                        .render(ui, Segment::at(i, count), Some(i == *selected));
+                        .render(ui, Segment::at(i, count), Some(i == index));
                     if response.clicked() && *selected != i {
                         *selected = i;
                         response.mark_changed();
+                        ui.ctx().request_repaint();
                     }
                     response
                 })
@@ -146,11 +149,12 @@ impl ToggleButtonGroup {
                         colors.surface_subtle,
                     ),
                 );
-                let index = (*selected).min(count - 1);
                 let target = responses[index].rect.shrink(2.);
                 let ctx = ui.ctx();
-                let animate =
-                    |name, x| ctx.animate_value_with_time(id.with(name), x, motion::NORMAL);
+                let origin = rect.left();
+                let animate = |name, x| {
+                    origin + ctx.animate_value_with_time(id.with(name), x - origin, motion::NORMAL)
+                };
                 let rect = Rect::from_min_max(
                     pos2(animate("left", target.left()), target.top()),
                     pos2(animate("right", target.right()), target.bottom()),

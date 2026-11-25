@@ -256,6 +256,14 @@ impl Button {
                 colors.text_primary,
                 Color32::TRANSPARENT,
             ],
+            // Translucent feedback leaves the sliding selection visible underneath.
+            Variant::Ghost if selected.is_some() => [
+                Color32::TRANSPARENT,
+                colors.text_primary.gamma_multiply(0.08),
+                colors.text_primary.gamma_multiply(0.14),
+                colors.text_primary,
+                Color32::TRANSPARENT,
+            ],
             Variant::Outline | Variant::Ghost => [
                 Color32::TRANSPARENT,
                 colors.surface_subtle,

@@ -27,10 +27,9 @@ impl<'a> ShortcutGuard<'a> {
         }
     }
 
-    /// Whether this UI can consume a shortcut without taking input from a widget or overlay.
+    /// Whether this layer can handle shortcuts and no text editor has focus.
     pub fn allows(self) -> bool {
         !self.ctx.text_edit_focused()
-            && !self.ctx.egui_wants_keyboard_input()
             && self.ctx.memory(|memory| {
                 let top = memory
                     .layer_ids()
@@ -47,8 +46,10 @@ impl<'a> ShortcutGuard<'a> {
             && (self.overlay || !Popup::is_any_open(self.ctx))
     }
 
-    /// Consume a pressed shortcut only if this UI can claim it.
+    /// Consume a pressed shortcut, reserving unmodified keys for focused widgets.
     pub fn consume(self, shortcut: &KeyboardShortcut) -> bool {
-        self.allows() && self.ctx.input_mut(|input| input.consume_shortcut(shortcut))
+        self.allows()
+            && (shortcut.modifiers.any() || !self.ctx.egui_wants_keyboard_input())
+            && self.ctx.input_mut(|input| input.consume_shortcut(shortcut))
     }
 }

@@ -1,5 +1,7 @@
 use egui::{Align, Layout, Rect, Ui, UiBuilder, pos2, vec2};
 
+use crate::{Theme, motion::FOCUS_RING_OUTSET};
+
 /// A row-major grid that reflows to fit its available width.
 #[derive(Clone, Copy, Debug)]
 pub struct ResponsiveGrid {
@@ -44,6 +46,15 @@ impl ResponsiveGrid {
         let width = ui.available_width();
         let columns = self.columns(width);
         let cell = ((width - self.gap * (columns - 1) as f32) / columns as f32).max(0.);
+        let shadow = Theme::current(ui.ctx()).shadow().margin();
+        let paint_margin = |shadow_margin: f32, neighbor| {
+            let outset = shadow_margin.max(FOCUS_RING_OUTSET);
+            if neighbor {
+                outset.min(self.gap * 0.5)
+            } else {
+                outset
+            }
+        };
         ui.scope(|ui| {
             ui.spacing_mut().item_spacing.y = self.gap;
             for row in 0..items.div_ceil(columns) {
@@ -63,7 +74,17 @@ impl ResponsiveGrid {
                             .max_rect(rect)
                             .layout(Layout::top_down(Align::Min)),
                     );
-                    child.shrink_clip_rect(rect.with_max_y(ui.clip_rect().bottom()));
+                    let clip = Rect::from_min_max(
+                        pos2(
+                            rect.left() - paint_margin(shadow.left, column > 0),
+                            rect.top() - paint_margin(shadow.top, row > 0),
+                        ),
+                        pos2(
+                            rect.right() + paint_margin(shadow.right, column + 1 < count),
+                            ui.clip_rect().bottom(),
+                        ),
+                    );
+                    child.shrink_clip_rect(clip);
                     child.set_min_width(cell);
                     element(&mut child, start + column);
                     height = height.max(child.min_rect().height());

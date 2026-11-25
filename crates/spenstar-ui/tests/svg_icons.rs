@@ -103,6 +103,34 @@ fn tint_respects_alpha_css_and_explicit_brand_paint() -> Result<(), SvgIconError
 }
 
 #[test]
+fn current_color_tints_lowercase_attributes_and_mixed_case_styles() -> Result<(), SvgIconError> {
+    let source = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+        <style>.paint { fill: CuRrEnTcOlOr; }</style>
+        <rect width="10" height="20" fill="currentcolor"/>
+        <rect x="10" width="10" height="20" class="paint"/>
+    </svg>"#;
+    let icon = SvgIcon::from_bytes("mixed-case", source)?;
+    let tint = Color32::from_rgb(100, 180, 230);
+    let image = icon.rasterize(20, tint)?;
+    assert_eq!(image.pixels[5], tint);
+    assert_eq!(image.pixels[15], tint);
+    Ok(())
+}
+
+#[test]
+fn static_and_owned_svg_share_a_texture_for_equal_content() -> Result<(), SvgIconError> {
+    let ctx = Context::default();
+    let embedded = SvgIcon::from_static("square", SQUARE);
+    let owned = SvgIcon::from_bytes(String::from("square"), SQUARE.as_bytes())?;
+    assert_eq!(embedded, owned);
+    let first = SvgIconEngine::texture(&ctx, &embedded, 20., Color32::WHITE)?;
+    let second = SvgIconEngine::texture(&ctx, &owned, 20., Color32::WHITE)?;
+    assert_eq!(first.id(), second.id());
+    assert_eq!(SvgIconEngine::stats(&ctx).textures, 1);
+    Ok(())
+}
+
+#[test]
 fn invalid_and_oversized_documents_return_typed_errors() {
     let malformed = b"<svg><not-closed>";
     assert_eq!(
