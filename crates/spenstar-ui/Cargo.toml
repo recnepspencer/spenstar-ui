@@ -1,0 +1,21 @@
+[package]
+name = "spenstar-ui"
+description = "Modern, web-grade components, layouts, and crisp HiDPI SVG icons for egui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+readme = "../../README.md"
+keywords = ["egui", "gui", "ui", "components", "icons"]
+categories = ["gui"]
+include = ["src/**/*", "assets/**/*", "tests/**/*", "LICENSE-*", "Cargo.toml"]
+
+[dependencies]
+egui = { workspace = true, features = ["default_fonts"] }
+resvg = { workspace = true }
+roxmltree = "0.21"
+
+[lints]
+workspace = true

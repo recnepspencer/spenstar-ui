@@ -1,0 +1,25 @@
+[workspace]
+resolver = "3"
+members = ["crates/spenstar-ui", "crates/spenstar-gallery"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/recnepspencer/spenstar-ui"
+authors = ["Spencer Hepworth"]
+
+[workspace.dependencies]
+egui = { version = "0.37", default-features = false }
+eframe = "0.37"
+resvg = { version = "0.50", default-features = false }
+spenstar-ui = { path = "crates/spenstar-ui", version = "0.1.0" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"

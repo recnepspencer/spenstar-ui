@@ -1,0 +1,17 @@
+[package]
+name = "spenstar-gallery"
+description = "Interactive showcase for spenstar-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+spenstar-ui = { workspace = true }
+eframe = { workspace = true }
+
+[lints]
+workspace = true

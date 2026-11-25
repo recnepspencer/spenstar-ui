@@ -1,2 +1,45 @@
 # spenstar-ui
-Modern, web-grade component, layout, and HiDPI SVG icon library for egui
+
+Dashboard layouts, controls, typography, and HiDPI SVG icons for [egui 0.37](https://github.com/emilk/egui). The core crate works with any egui integration. The native gallery uses eframe.
+
+## Run the gallery
+
+Use Rust 1.95 or later.
+
+```sh
+cargo run -p spenstar-gallery
+```
+
+Browse the dashboard, button controls, 109 Lucide icons, and design tokens. Open **Appearance settings** in the page header to try the sidebar styles, Light and Dark modes, and accent presets. Use **Ctrl+B** (**⌘B** on macOS) to cycle through expanded, rail, and hidden navigation.
+
+## Use the library
+
+Call `spenstar_ui::install` once during initialization. Then render controls in any `egui::Ui`.
+
+```rust
+use spenstar_ui::{
+    button::Button, egui, icon::Icon,
+    theme::{Accent, Mode, Theme},
+};
+
+fn initialize(ctx: &egui::Context) {
+    Theme::new(Mode::Dark, Accent::Indigo).install(ctx);
+}
+
+fn toolbar(ui: &mut egui::Ui) {
+    if Button::new("New shipment").leading(Icon::Plus).show(ui).clicked() {
+        // Create the draft.
+    }
+}
+```
+
+Use `Theme::apply` to change colors after installation. Use `AppShell` to compose a sidebar, page header, main view, and optional inspector. `ResponsiveGrid` and `SplitPane` work inside any UI.
+
+`SvgIcon::from_bytes` validates self-contained UTF-8 SVG documents up to 64 KiB. `SvgIcon::from_static` accepts embedded assets and parses them on the first render. SVG paint values using `currentColor` take the supplied tint, while explicit colors are preserved. Rasterization uses physical viewport pixels, with a maximum edge of 512 pixels. Each egui context caches up to 192 texture handles and 8 MiB of RGBA texture data. Convert text to vector outlines and use vector paths for embedded imagery.
+
+## License
+
+Code is available under the [MIT License](LICENSE-MIT) or [Apache License 2.0](LICENSE-APACHE).
+
+- [Inter](https://github.com/rsms/inter) and [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) are bundled under the SIL Open Font License 1.1. [Inter notice](crates/spenstar-ui/assets/fonts/LICENSE-INTER) · [JetBrains Mono notice](crates/spenstar-ui/assets/fonts/LICENSE-JETBRAINS-MONO)
+- [Lucide](https://lucide.dev) icons are bundled with their upstream ISC and MIT notices. [Lucide notice](crates/spenstar-ui/assets/icons/LICENSE-LUCIDE)
