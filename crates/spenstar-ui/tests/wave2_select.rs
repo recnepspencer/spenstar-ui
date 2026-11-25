@@ -154,3 +154,92 @@ fn combo_filters_and_blocks_global_shortcuts_then_commits_existing_and_custom_va
     assert_eq!(query, "Remote dock");
     assert_eq!(custom, ["Remote dock"]);
 }
+
+#[test]
+fn combo_opening_arrow_keeps_the_first_option_active() {
+    for (opening_key, next_key, expected) in [
+        (Key::ArrowDown, None, "north"),
+        (Key::ArrowUp, None, "north"),
+        (Key::ArrowDown, Some(Key::ArrowDown), "west"),
+    ] {
+        let mut h = Harness::new(Mode::Light);
+        let options = choices();
+        let sections = [SelectSection {
+            label: None,
+            options: &options,
+        }];
+        let mut query = String::new();
+        let mut render = |ui: &mut Ui| ComboBox::default().show(ui, &mut query, &sections);
+        let (_, closed) = h.draw(vec![], &mut render);
+        h.focus(closed.response.id);
+        let (_, open) = h.draw(key(opening_key), &mut render);
+        assert!(open.open);
+        if let Some(next_key) = next_key {
+            h.draw(key(next_key), &mut render);
+        }
+        let (_, picked) = h.draw(key(Key::Enter), &mut render);
+        assert_eq!(
+            picked.selected.as_deref(),
+            Some(expected),
+            "{opening_key:?}"
+        );
+        assert!(!picked.open);
+    }
+}
+
+#[test]
+fn select_enter_activates_the_popup_row_focused_with_tab() {
+    assert_eq!(select_from_tab_focus(None).as_deref(), Some("west"));
+    assert_eq!(
+        select_from_tab_focus(Some(Key::ArrowDown)).as_deref(),
+        Some("east")
+    );
+}
+
+fn select_from_tab_focus(next_key: Option<Key>) -> Option<String> {
+    let mut h = Harness::new(Mode::Light);
+    let options = choices();
+    let sections = [SelectSection {
+        label: None,
+        options: &options,
+    }];
+    let mut selected = None;
+    let mut render = |ui: &mut Ui| {
+        let out = Select::default().show(ui, &mut selected, &sections);
+        (out, selected.clone())
+    };
+    let (_, (closed, _)) = h.draw(vec![], &mut render);
+    let (_, (opened, _)) = h.click(closed.response.rect.center(), &mut render);
+    assert!(opened.open);
+    let (frame, _) = h.draw(vec![], &mut render);
+    let west = frame
+        .platform_output
+        .accesskit_update
+        .as_ref()
+        .and_then(|update| {
+            update
+                .nodes
+                .iter()
+                .find_map(|(id, node)| (node.label() == Some("West harbor")).then_some(*id))
+        });
+    let Some(west) = west else {
+        panic!("the popup row was missing");
+    };
+    let west_focused = |h: &Harness| {
+        h.ctx
+            .memory(|m| m.focused().is_some_and(|id| id.accesskit_id() == west))
+    };
+    for _ in 0..6 {
+        h.draw(key(Key::Tab), &mut render);
+        if west_focused(&h) {
+            break;
+        }
+    }
+    assert!(west_focused(&h));
+    if let Some(next_key) = next_key {
+        h.draw(key(next_key), &mut render);
+    }
+    let (_, (picked, value)) = h.draw(key(Key::Enter), &mut render);
+    assert!(!picked.open);
+    value
+}

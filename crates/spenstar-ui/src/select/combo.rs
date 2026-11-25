@@ -1,4 +1,4 @@
-use egui::{Key, Response, Ui};
+use egui::{Key, Modifiers, Response, Ui};
 
 use super::{
     SelectSection, SelectStyle,
@@ -81,8 +81,14 @@ impl ComboBox<'_> {
         anchor.rect = input.frame;
         anchor.interact_rect = input.frame.intersect(ui.clip_rect());
         let changed = response.changed();
-        let open_by_key = response.has_focus()
-            && ui.input(|i| i.key_pressed(Key::ArrowDown) || i.key_pressed(Key::ArrowUp));
+        let open_by_key = response.enabled()
+            && response.has_focus()
+            && !popover::is_open(&anchor)
+            && ui.input_mut(|input| {
+                let down = input.consume_key(Modifiers::NONE, Key::ArrowDown);
+                let up = input.consume_key(Modifiers::NONE, Key::ArrowUp);
+                down || up
+            });
         if toggle {
             popover::toggle(&anchor);
             response.request_focus();

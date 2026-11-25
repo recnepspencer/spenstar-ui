@@ -123,9 +123,9 @@ impl<'a> Menu<'a> {
                         );
                     }
                 }
-                let mut action = submit
-                    .then(|| active.and_then(|i| rows.get(i).copied()))
-                    .flatten();
+                let mut action = None;
+                let mut focused_row = None;
+                let mut arrow_target = None;
                 if let Some(caption) = self.caption {
                     ui.label(Type::Caption.text(caption).color(c.text_secondary));
                 }
@@ -147,6 +147,17 @@ impl<'a> Menu<'a> {
                             let highlighted = active == Some(index);
                             let response =
                                 paint_row(ui, row, highlighted, row.selected(&is_selected));
+                            if response.enabled() && response.has_focus() {
+                                focused_row = Some(response.id);
+                                if steps == 0 && !highlighted {
+                                    active = Some(index);
+                                    response.scroll_to_me(None);
+                                    ui.ctx().request_repaint();
+                                }
+                            }
+                            if steps != 0 && highlighted {
+                                arrow_target = Some(response.id);
+                            }
                             if response.clicked() {
                                 action = Some(row);
                                 active = Some(index);
@@ -156,12 +167,24 @@ impl<'a> Menu<'a> {
                             }
                         }
                     });
+                // Arrow navigation keeps focus with the highlight when Tab entered the list.
+                if let (Some(focused), Some(target)) = (focused_row, arrow_target)
+                    && focused != target
+                {
+                    ui.memory_mut(|memory| memory.request_focus(target));
+                }
                 if let Some(index) = active {
                     ui.ctx().data_mut(|d| d.insert_temp(id, index));
                 } else {
                     ui.ctx().data_mut(|d| d.remove::<usize>(id));
                 }
-                action
+                action.or_else(|| {
+                    if submit {
+                        active.and_then(|i| rows.get(i).copied())
+                    } else {
+                        None
+                    }
+                })
             },
         );
         if !popover::is_open(anchor) {

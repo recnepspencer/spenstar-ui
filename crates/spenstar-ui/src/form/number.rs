@@ -50,6 +50,7 @@ impl Default for NumberField<'_> {
 struct Draft {
     text: String,
     editing: bool,
+    value_bits: u64,
 }
 
 impl NumberField<'_> {
@@ -65,9 +66,11 @@ impl NumberField<'_> {
                 .unwrap_or_else(|| Draft {
                     text: format(*value),
                     editing: false,
+                    value_bits: value.to_bits(),
                 });
-            if !draft.editing {
+            if !draft.editing || draft.value_bits != value.to_bits() {
                 draft.text = format(*value);
+                draft.value_bits = value.to_bits();
             }
             let color = Theme::current(ui.ctx()).colors.text_secondary;
             let spacing = ui.spacing().item_spacing.x;
@@ -116,11 +119,18 @@ impl NumberField<'_> {
                 } else {
                     1.
                 };
-                let base = parsed
+                let edited = parsed.filter(|_| draft.text != format(old));
+                let base = edited
                     .or_else(|| old.is_finite().then_some(old))
                     .unwrap_or(0.);
-                let next = (base + steps * step).clamp(min, max);
-                *value = parse(&format(next)).unwrap_or(next).clamp(min, max);
+                *value = if edited.is_some() || steps != 0. {
+                    let next = (base + steps * step).clamp(min, max);
+                    parse(&format(next)).unwrap_or(next).clamp(min, max)
+                } else {
+                    // An untouched display may round an externally supplied value.
+                    base.clamp(min, max)
+                };
+                draft.value_bits = value.to_bits();
                 let formatted = format(*value);
                 if draft.text != formatted {
                     draft.text = formatted;

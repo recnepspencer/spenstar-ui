@@ -260,3 +260,44 @@ fn dragging_a_range_thumb_cannot_cross_the_other_thumb() {
     let (_, released) = h.draw(pointer(to, false), &mut render);
     assert_eq!(released, active);
 }
+
+#[test]
+fn number_adopts_an_external_update_while_focused_and_preserves_it_on_blur() {
+    let mut h = Harness::new(Mode::Light);
+    let value = std::cell::Cell::new(5.);
+    let mut render = |ui: &mut Ui| {
+        ui.set_max_width(280.);
+        let mut number = value.get();
+        let out = NumberField {
+            precision: 1,
+            ..Default::default()
+        }
+        .show(ui, &mut number);
+        value.set(number);
+        out
+    };
+    let (_, out) = h.draw(vec![], &mut render);
+    let id = out.response.id;
+    h.focus(id);
+    h.draw(key_with(Key::A, Modifiers::COMMAND), &mut render);
+    h.draw(vec![Event::Text("91".into())], &mut render);
+    assert_eq!(value.get(), 5.);
+
+    value.set(14.375);
+    let (frame, out) = h.draw(vec![], &mut render);
+    assert!(out.response.has_focus());
+    let text = frame
+        .platform_output
+        .accesskit_update
+        .as_ref()
+        .and_then(|update| {
+            update
+                .nodes
+                .iter()
+                .find(|(node, _)| *node == id.accesskit_id())
+                .and_then(|(_, node)| node.value())
+        });
+    assert_eq!(text, Some("14.4"));
+    h.click(pos2(400., 100.), &mut render);
+    assert_eq!(value.get(), 14.375);
+}
