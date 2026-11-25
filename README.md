@@ -10,7 +10,14 @@ Use Rust 1.95 or later.
 cargo run -p spenstar-gallery
 ```
 
-Browse the dashboard, button controls, 109 Lucide icons, design tokens, forms, range controls, and date and time pickers. The **Forms & Controls** page lets you change the gallery’s accent with a swatch. Open **Appearance settings** in the page header to try the sidebar styles, Light and Dark modes, and accent presets. Use **Ctrl+B** (**⌘B** on macOS) to cycle through expanded, rail, and hidden navigation.
+Explore the Dashboard, Orders, Tracker, Inbox, Settings, and Dispatch Workspace templates, or browse buttons, 109 Lucide icons, design tokens, forms, and pickers. The **Forms & Controls** page lets you change the gallery’s accent with a swatch. Open **Appearance** in the page header to try the sidebar styles, Light and Dark modes, and accent presets. Use **Ctrl+B** (**⌘B** on macOS) to cycle through expanded, rail, and hidden navigation.
+
+
+Use the gallery’s capture mode to write 2× PNGs of the templates, the optional inspector, and the component pages. The gallery closes when the capture is complete.
+
+```sh
+cargo run -p spenstar-gallery -- --capture-dir /tmp/spenstar-shots
+```
 
 ## Use the library
 

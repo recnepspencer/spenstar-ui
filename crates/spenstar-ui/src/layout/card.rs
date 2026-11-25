@@ -1,6 +1,10 @@
 use egui::{Frame, InnerResponse, Margin, Role, Sense, Shadow, Stroke, Ui, UiBuilder, WidgetInfo};
 
-use crate::{Theme, motion, theme::Radius, typography::Type};
+use crate::{
+    Theme, motion,
+    theme::{Mode, Radius},
+    typography::Type,
+};
 
 use super::Separator;
 
@@ -66,16 +70,22 @@ impl<'a> Card<'a> {
             let c = theme.colors;
             let prior = ui.response();
             let fill = match self.variant {
-                CardVariant::Elevated => c.surface_elevated,
                 CardVariant::Interactive if prior.hovered() => c.accent.soft,
                 _ => c.surface,
             };
             let border = if self.variant == CardVariant::Flat {
                 Stroke::NONE
             } else {
-                Stroke::new(1., c.border_subtle)
+                Stroke::new(
+                    1.,
+                    if theme.mode == Mode::Light {
+                        egui::Color32::from_black_alpha(13)
+                    } else {
+                        c.border
+                    },
+                )
             };
-            let shadow = if self.variant == CardVariant::Elevated {
+            let shadow = if self.variant != CardVariant::Flat && theme.mode == Mode::Light {
                 theme.shadow()
             } else {
                 Shadow::NONE
@@ -83,11 +93,12 @@ impl<'a> Card<'a> {
             let frame = Frame::new()
                 .fill(fill)
                 .stroke(border)
-                .corner_radius(12)
+                .corner_radius(16)
                 .shadow(shadow)
-                .inner_margin(Margin::same(16));
+                .inner_margin(Margin::same(18));
             frame
                 .show(ui, |ui| {
+                    ui.visuals_mut().extreme_bg_color = c.surface_secondary;
                     ui.set_min_width(ui.available_width());
                     content(&mut CardBody { ui })
                 })
@@ -104,7 +115,7 @@ impl<'a> Card<'a> {
             motion::focus_ring(
                 ui,
                 &result.response,
-                Radius::Lg.for_size(result.response.rect.size()),
+                Radius::Xl.for_size(result.response.rect.size()),
             );
         }
         result
@@ -125,7 +136,8 @@ impl CardBody<'_> {
             self.ui
                 .label(Type::Small.text(description).color(colors.text_secondary));
         }
-        self.ui.add_space(8.);
+        self.ui
+            .add_space((12. - self.ui.spacing().item_spacing.y).max(0.));
     }
 
     /// Render the main content.

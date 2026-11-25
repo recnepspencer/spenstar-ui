@@ -65,11 +65,14 @@ impl Demo {
         let mut new_accent = None;
         ResponsiveGrid::new(308.)
             .max_columns(2)
-            .show(ui, 4, |ui, index| match index {
-                0 => self.text(ui),
-                1 => self.choices(ui),
-                2 => self.scales(ui),
-                _ => new_accent = self.tags_and_colors(ui, accent),
+            .show(ui, 2, |ui, index| {
+                if index == 0 {
+                    self.text(ui);
+                    self.scales(ui);
+                } else {
+                    self.choices(ui);
+                    new_accent = self.tags_and_colors(ui, accent);
+                }
             });
         new_accent
     }
@@ -375,7 +378,7 @@ pub(super) fn section<R>(ui: &mut Ui, title: &str, body: impl FnOnce(&mut Ui) ->
         .show(ui, |card| {
             card.header(title, None);
             card.body(|ui| {
-                ui.spacing_mut().item_spacing.y = 9.;
+                ui.spacing_mut().item_spacing.y = 16.;
                 body(ui)
             })
         })

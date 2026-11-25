@@ -4,7 +4,13 @@ use egui::{
 };
 
 use super::{FieldVariant, Size};
-use crate::{Theme, icon::Icon, motion, theme::Radius, typography::Type};
+use crate::{
+    Theme,
+    icon::Icon,
+    motion,
+    theme::{Mode, Radius, mix},
+    typography::Type,
+};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct EntryStyle {
@@ -16,17 +22,16 @@ pub(crate) struct EntryStyle {
 impl EntryStyle {
     pub fn height(self) -> f32 {
         match self.size {
-            Size::Sm => 28.,
-            Size::Md => 36.,
+            Size::Sm => 32.,
+            Size::Md => 38.,
             Size::Lg => 44.,
         }
     }
 
     pub fn font(self) -> FontId {
         match self.size {
-            Size::Sm => Type::Small.font(),
-            Size::Md => Type::Body.font(),
-            Size::Lg => Type::H4.font(),
+            Size::Sm => Type::Description.font(),
+            Size::Md | Size::Lg => Type::Body.font(),
         }
     }
 
@@ -38,10 +43,10 @@ impl EntryStyle {
         let background = ui.painter().add(Shape::Noop);
         let width = ui.available_width();
         let inner = Frame::new()
-            .inner_margin(Margin::symmetric(9, 0))
+            .inner_margin(Margin::symmetric(12, 0))
             .show(ui, |ui| {
                 ui.allocate_ui_with_layout(
-                    vec2((width - 18.).max(0.), self.height()),
+                    vec2((width - 24.).max(0.), self.height()),
                     Layout::left_to_right(Align::Center),
                     contents,
                 )
@@ -57,29 +62,71 @@ impl EntryStyle {
         rect: egui::Rect,
         response: &Response,
     ) {
-        let c = Theme::current(ui.ctx()).colors;
-        let radius = Radius::Md.for_size(rect.size());
-        let focused = response.has_focus();
-        let stroke = Stroke::new(
-            1.,
-            if self.invalid {
-                c.danger.ring
-            } else if focused {
-                c.accent.ring
-            } else if response.hovered() {
-                c.text_muted
-            } else {
-                c.border
-            },
+        let theme = Theme::current(ui.ctx());
+        let c = theme.colors;
+        let radius = if matches!(self.variant, FieldVariant::Capsule | FieldVariant::Tonal) {
+            Radius::Full
+        } else {
+            Radius::Lg
+        }
+        .for_size(rect.size());
+        let focus = motion::eased(
+            ui.ctx(),
+            response.id.with("entry-focus"),
+            response.has_focus(),
+            motion::FAST,
         );
+        let hover = motion::eased(
+            ui.ctx(),
+            response.id.with("entry-hover"),
+            response.hovered(),
+            motion::FAST,
+        );
+        let canvas = ui.visuals().extreme_bg_color == c.surface;
+        let canvas_hairline =
+            canvas && theme.mode == Mode::Light && self.variant == FieldVariant::Filled;
+        let stroke = match (self.invalid, self.variant) {
+            (true, _) => Stroke::new(1.5, c.danger.base),
+            (false, FieldVariant::Filled) if canvas => {
+                Stroke::new(1., egui::Color32::from_black_alpha(15))
+            }
+            (false, FieldVariant::Filled | FieldVariant::Capsule | FieldVariant::Tonal) => {
+                Stroke::NONE
+            }
+            (false, _) => Stroke::new(1., mix(c.border, c.text_muted, hover * 0.3)),
+        };
         let fill = match self.variant {
             FieldVariant::Outline => c.surface,
-            FieldVariant::Filled => c.surface_subtle,
+            FieldVariant::Filled => {
+                let brighter = if theme.mode == Mode::Light {
+                    c.surface
+                } else {
+                    c.field_hover
+                };
+                let base = if canvas {
+                    c.surface
+                } else {
+                    c.surface_secondary
+                };
+                let hovered = match (canvas, theme.mode) {
+                    (true, Mode::Light) => c.surface_subtle,
+                    (true, Mode::Dark) => c.surface_elevated,
+                    _ => c.field_hover,
+                };
+                mix(mix(base, hovered, hover), brighter, focus * 0.6)
+            }
             FieldVariant::Underlined => egui::Color32::TRANSPARENT,
+            FieldVariant::Capsule => mix(c.default.base, c.default.hover, hover.max(focus)),
+            FieldVariant::Tonal => mix(c.accent.soft, c.accent.soft_hover, hover.max(focus)),
         };
         let shape = if self.variant == FieldVariant::Underlined {
             Shape::line_segment([rect.left_bottom(), rect.right_bottom()], stroke)
         } else {
+            let fill = if self.invalid {
+                mix(fill, c.danger.base, 0.07)
+            } else {
+                fill
+            };
             Shape::Rect(egui::epaint::RectShape::new(
                 rect,
                 radius,
@@ -88,16 +135,32 @@ impl EntryStyle {
                 StrokeKind::Inside,
             ))
         };
+        let shape = if canvas_hairline {
+            let shadow = egui::Shadow {
+                offset: [0, 1],
+                blur: 2,
+                spread: 0,
+                color: egui::Color32::from_black_alpha(15),
+            };
+            Shape::Vec(vec![shadow.as_shape(rect, radius).into(), shape])
+        } else {
+            shape
+        };
         let mut painter = ui.painter().clone();
         if !response.enabled() && ui.is_enabled() {
             painter.multiply_opacity(0.55);
         }
         painter.set(background, shape);
-        if focused {
+        if focus > 0. {
+            let ink = if self.invalid {
+                c.danger.base
+            } else {
+                c.accent.ring
+            };
             painter.rect_stroke(
-                rect.expand(2.),
+                rect.expand(1.),
                 radius,
-                Stroke::new(2., stroke.color),
+                Stroke::new(2., ink.gamma_multiply(focus)),
                 StrokeKind::Outside,
             );
         }

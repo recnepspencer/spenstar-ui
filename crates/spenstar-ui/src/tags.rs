@@ -78,10 +78,10 @@ pub(crate) fn chip(ui: &mut Ui, tag: &Tag<'_>, width: f32) -> bool {
                     + if tag.icon.is_some() { 15. } else { 0. };
                 let text_width = ui
                     .painter()
-                    .layout_no_wrap(tag.label.to_owned(), Type::Small.font(), tone.ring)
+                    .layout_no_wrap(tag.label.to_owned(), Type::Badge.font(), tone.ring)
                     .size()
                     .x;
-                let label = egui::Label::new(Type::Small.text(tag.label).color(
+                let label = egui::Label::new(Type::Badge.text(tag.label).color(
                     if tag.tone == Tone::Neutral {
                         colors.text_primary
                     } else {

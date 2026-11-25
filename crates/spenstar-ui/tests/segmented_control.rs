@@ -39,13 +39,17 @@ fn render(
 }
 
 fn rectangles(output: &FullOutput) -> impl Iterator<Item = &RectShape> {
+    fn rect(shape: &Shape) -> Option<&RectShape> {
+        match shape {
+            Shape::Rect(rect) => Some(rect),
+            Shape::Vec(shapes) => shapes.iter().rev().find_map(rect),
+            _ => None,
+        }
+    }
     output
         .shapes
         .iter()
-        .filter_map(|clipped| match &clipped.shape {
-            Shape::Rect(rect) => Some(rect),
-            _ => None,
-        })
+        .filter_map(|clipped| rect(&clipped.shape))
 }
 
 #[test]
@@ -63,7 +67,7 @@ fn sliding_indicator_tracks_group_origin_without_delay() {
     let (after, after_buttons) = render(&ctx, 1.08, 132., None, &mut selected);
     let pill = |output: &FullOutput| {
         rectangles(output)
-            .find_map(|shape| (shape.fill == theme.colors.accent.soft_hover).then_some(shape.rect))
+            .find_map(|shape| (shape.fill == theme.colors.surface).then_some(shape.rect))
     };
     let Some(before_pill) = pill(&before) else {
         panic!("missing selection indicator")
@@ -94,11 +98,16 @@ fn clamped_selection_remains_visible_and_accessible_when_hovered() {
     assert!(buttons[1].hovered());
 
     let mut shapes = rectangles(&output);
-    let Some(pill) = shapes.find(|shape| shape.fill == theme.colors.accent.soft_hover) else {
+    let Some(pill) = shapes.find(|shape| shape.fill == theme.colors.surface) else {
         panic!("missing selection indicator");
     };
-    assert_eq!(pill.rect, buttons[1].rect.shrink(2.));
-    assert!(shapes.all(|shape| !shape.rect.contains(pointer) || !shape.fill.is_opaque()));
+    assert_eq!(pill.rect, buttons[1].rect);
+    assert_eq!(pill.corner_radius.nw as f32, pill.rect.height() * 0.5);
+    assert!(
+        shapes.all(|shape| shape.fill == theme.colors.segmented_track
+            || !shape.rect.contains(pointer)
+            || !shape.fill.is_opaque())
+    );
 
     let Some(a11y) = &output.platform_output.accesskit_update else {
         panic!("missing accessibility update");

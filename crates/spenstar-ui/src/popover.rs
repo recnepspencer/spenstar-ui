@@ -51,9 +51,9 @@ pub(crate) fn show<R>(
     }
     let theme = Theme::current(ctx);
     let frame = Frame::new()
-        .fill(theme.colors.surface_elevated)
-        .stroke(Stroke::new(1., theme.colors.border))
-        .corner_radius(8)
+        .fill(theme.colors.overlay)
+        .stroke(Stroke::new(1., theme.colors.overlay_border))
+        .corner_radius(12)
         .shadow(theme.shadow())
         .inner_margin(Margin::same(6));
     let width = width.min((ctx.content_rect().width() - 14.).max(1.));

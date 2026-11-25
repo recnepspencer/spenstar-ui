@@ -9,19 +9,19 @@ pub mod primitives {
     pub const SPACE: [f32; 10] = [0., 4., 8., 12., 16., 20., 24., 32., 40., 48.];
     /// Neutral ramp from light to dark.
     pub const NEUTRAL: [Color32; 13] = [
-        Color32::WHITE,
-        Color32::from_rgb(248, 249, 252),
-        Color32::from_rgb(241, 244, 248),
-        Color32::from_rgb(225, 230, 237),
-        Color32::from_rgb(205, 213, 225),
-        Color32::from_rgb(158, 174, 194),
-        Color32::from_rgb(106, 121, 143),
-        Color32::from_rgb(77, 91, 111),
-        Color32::from_rgb(54, 66, 85),
-        Color32::from_rgb(37, 46, 62),
-        Color32::from_rgb(26, 33, 46),
-        Color32::from_rgb(19, 25, 36),
-        Color32::from_rgb(13, 18, 28),
+        Color32::from_rgb(255, 255, 255),
+        Color32::from_rgb(245, 245, 245),
+        Color32::from_rgb(239, 239, 240),
+        Color32::from_rgb(228, 228, 231),
+        Color32::from_rgb(221, 222, 224),
+        Color32::from_rgb(159, 159, 169),
+        Color32::from_rgb(113, 113, 122),
+        Color32::from_rgb(82, 82, 91),
+        Color32::from_rgb(40, 40, 44),
+        Color32::from_rgb(39, 39, 42),
+        Color32::from_rgb(35, 35, 37),
+        Color32::from_rgb(24, 24, 27),
+        Color32::from_rgb(6, 6, 7),
     ];
 }
 
@@ -72,7 +72,7 @@ impl Accent {
     /// Primitive accent color.
     pub const fn color(self) -> Color32 {
         match self {
-            Self::Blue => Color32::from_rgb(37, 99, 235),
+            Self::Blue => Color32::from_rgb(4, 133, 247),
             Self::Indigo => Color32::from_rgb(79, 70, 229),
             Self::Violet => Color32::from_rgb(124, 58, 237),
             Self::Emerald => Color32::from_rgb(5, 150, 105),
@@ -122,7 +122,7 @@ impl Palette {
             foreground,
             hover: mix(base, shade, 0.10),
             active: mix(base, shade, 0.20),
-            soft: mix(surface, base, 0.13),
+            soft: mix(surface, base, 0.14),
             soft_hover: mix(surface, base, 0.23),
             ring,
         }
@@ -140,8 +140,22 @@ pub struct Semantics {
     pub surface_elevated: Color32,
     /// Recessed areas and secondary controls.
     pub surface_subtle: Color32,
-    /// Modal scrim.
+    /// Secondary control fill.
+    pub surface_secondary: Color32,
+    /// Tertiary control fill.
+    pub surface_tertiary: Color32,
+    /// Filled control hover state.
+    pub field_hover: Color32,
+    /// Popover surface.
     pub overlay: Color32,
+    /// Popover perimeter.
+    pub overlay_border: Color32,
+    /// Modal backdrop.
+    pub scrim: Color32,
+    /// Segmented control track.
+    pub segmented_track: Color32,
+    /// Unselected radio indicator.
+    pub radio_fill: Color32,
     /// Control outline.
     pub border: Color32,
     /// Panel outline.
@@ -219,21 +233,28 @@ impl Theme {
     /// Resolve a theme from its appearance and accent.
     pub fn new(mode: Mode, accent: Accent) -> Self {
         let n = primitives::NEUTRAL;
-        let [
-            background,
-            surface,
-            elevated,
-            subtle,
-            border,
-            line,
-            primary,
-            secondary,
-            muted,
-        ] = match mode {
-            Mode::Light => [n[1], n[0], n[0], n[2], n[4], n[3], n[12], n[7], n[7]],
-            Mode::Dark => [n[12], n[11], n[10], n[10], n[8], n[9], n[1], n[4], n[5]],
+        let light = mode == Mode::Light;
+        let (background, surface, border, primary, secondary, muted) = if light {
+            (n[1], n[0], n[4], n[11], n[7], n[6])
+        } else {
+            (n[12], n[11], n[8], rgb(0xFCFCFC), rgb(0xD4D4D8), n[5])
         };
+        let elevated = if light { surface } else { n[10] };
+        let secondary_surface = if light { n[2] } else { n[9] };
+        let subtle = if light { background } else { rgb(0x121215) };
+        let line = if light { n[3] } else { rgb(0x212124) };
+        let neutral = if light { rgb(0xEBEBEC) } else { n[9] };
         let palette = |base| Palette::derive(base, surface);
+        let mut primary_action = palette(accent.color());
+        if accent == Accent::Blue {
+            primary_action.foreground = rgb(0xFCFCFC);
+            primary_action.ring = primary_action.base;
+        }
+        let mut success = palette(rgb(0x17C964));
+        success.soft = mix(surface, rgb(0x14C965), 0.15);
+        success.ring = if light { rgb(0x2B7745) } else { rgb(0x7AE8AD) };
+        let mut danger = palette(rgb(if light { 0xFF383C } else { 0xDB3B3E }));
+        danger.ring = if light { rgb(0xA91F29) } else { rgb(0xFF8185) };
         Self {
             mode,
             accent,
@@ -242,18 +263,28 @@ impl Theme {
                 surface,
                 surface_elevated: elevated,
                 surface_subtle: subtle,
-                overlay: Color32::from_black_alpha(if mode == Mode::Dark { 168 } else { 104 }),
+                surface_secondary: secondary_surface,
+                surface_tertiary: if light { rgb(0xEAEAEB) } else { rgb(0x2E2E32) },
+                field_hover: rgb(if light { 0xE8E8EA } else { 0x2E2E32 }),
+                overlay: surface,
+                overlay_border: if light { border } else { rgb(0x2E2E32) },
+                scrim: Color32::from_black_alpha(if light { 104 } else { 168 }),
+                segmented_track: if light { neutral } else { subtle },
+                radio_fill: if light { n[3] } else { n[9] },
                 border,
                 border_subtle: line,
                 divider: line,
                 text_primary: primary,
                 text_secondary: secondary,
                 text_muted: muted,
-                default: palette(subtle),
-                accent: palette(accent.color()),
-                success: palette(Color32::from_rgb(5, 150, 105)),
-                warning: palette(Color32::from_rgb(217, 119, 6)),
-                danger: palette(Color32::from_rgb(220, 38, 38)),
+                default: Palette {
+                    foreground: primary,
+                    ..palette(neutral)
+                },
+                accent: primary_action,
+                success,
+                warning: palette(rgb(if light { 0xF5A524 } else { 0xF7B750 })),
+                danger,
             },
         }
     }
@@ -261,10 +292,10 @@ impl Theme {
     /// Soft shadow for an elevated surface.
     pub fn shadow(self) -> Shadow {
         Shadow {
-            offset: [0, 6],
-            blur: 20,
+            offset: [0, 2],
+            blur: 8,
             spread: 0,
-            color: Color32::from_black_alpha(if self.mode == Mode::Dark { 90 } else { 24 }),
+            color: Color32::from_black_alpha(if self.mode == Mode::Dark { 64 } else { 12 }),
         }
     }
 
@@ -283,7 +314,7 @@ impl Theme {
         };
         visuals.override_text_color = Some(c.text_primary);
         visuals.panel_fill = c.background;
-        visuals.window_fill = c.surface_elevated;
+        visuals.window_fill = c.overlay;
         visuals.window_stroke = Stroke::new(1., c.border_subtle);
         visuals.window_shadow = self.shadow();
         visuals.popup_shadow = self.shadow();
@@ -309,6 +340,7 @@ impl Theme {
             widget.fg_stroke = Stroke::new(1., c.text_primary);
             widget.corner_radius = CornerRadius::same(6);
         }
+        widgets.noninteractive.bg_stroke = Stroke::new(1., c.divider);
         ctx.set_visuals_of(mode, visuals);
         ctx.set_theme(mode);
         ctx.data_mut(|data| data.insert_temp(egui::Id::unique("spenstar-ui/theme"), self));
@@ -326,6 +358,10 @@ impl Theme {
                 Self::new(mode, Accent::Blue)
             })
     }
+}
+
+const fn rgb(hex: u32) -> Color32 {
+    Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
 }
 
 pub(crate) fn mix(a: Color32, b: Color32, factor: f32) -> Color32 {

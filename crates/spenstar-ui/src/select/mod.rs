@@ -72,7 +72,7 @@ impl Default for SelectStyle<'_> {
         Self {
             placeholder: "Choose an option…",
             size: Size::Md,
-            variant: FieldVariant::Outline,
+            variant: FieldVariant::Filled,
             leading: None,
             invalid: false,
             disabled: false,

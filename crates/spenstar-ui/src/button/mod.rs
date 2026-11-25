@@ -2,14 +2,15 @@
 mod group;
 mod trigger;
 
+use group::Segment;
 pub use group::{ButtonGroup, ToggleButton, ToggleButtonGroup};
 pub use trigger::{CloseButton, Link};
 
 use std::sync::Arc;
 
 use egui::{
-    Color32, CornerRadius, CursorIcon, Galley, Rect, Response, Role, Sense, Stroke, StrokeKind, Ui,
-    Widget, WidgetInfo, pos2, vec2,
+    Color32, CursorIcon, Galley, Rect, Response, Role, Sense, Stroke, StrokeKind, Ui, Widget,
+    WidgetInfo, pos2, vec2,
 };
 
 use crate::{
@@ -36,28 +37,20 @@ pub enum Variant {
     Ghost,
     /// Destructive action.
     Danger,
+    /// Tonal destructive action.
+    DangerSoft,
 }
 
 /// Button height and padding.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Size {
-    /// Compact, 28 points tall.
+    /// Compact, 32 points tall.
     Sm,
     /// Standard, 36 points tall.
     #[default]
     Md,
     /// Large, 44 points tall.
     Lg,
-}
-
-impl Size {
-    fn dimensions(self) -> (f32, f32, f32, f32) {
-        match self {
-            Self::Sm => (28., 10., 14., 12.),
-            Self::Md => (36., 14., 16., 13.),
-            Self::Lg => (44., 18., 20., 15.),
-        }
-    }
 }
 
 /// A text or icon trigger. The label also supplies its accessible name.
@@ -73,6 +66,7 @@ pub struct Button {
     loading: bool,
     tooltip: Option<String>,
     radius: Radius,
+    min_width: f32,
 }
 
 impl Button {
@@ -88,7 +82,8 @@ impl Button {
             enabled: true,
             loading: false,
             tooltip: None,
-            radius: Radius::Md,
+            radius: Radius::Full,
+            min_width: 0.,
         }
     }
 
@@ -101,6 +96,12 @@ impl Button {
     /// Set the height and padding.
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
+        self
+    }
+
+    /// Set a minimum width for a text button, centering its label and icons.
+    pub fn min_width(mut self, width: f32) -> Self {
+        self.min_width = if width.is_finite() { width.max(0.) } else { 0. };
         self
     }
 
@@ -178,7 +179,7 @@ impl Button {
 
     fn label_galley(&self, ui: &Ui) -> Option<Arc<Galley>> {
         (!self.icon_only).then(|| {
-            let mut font = Type::H4.font();
+            let mut font = Type::Label.font();
             font.size = self.size.dimensions().3;
             ui.painter()
                 .layout_no_wrap(self.label.clone(), font, Color32::PLACEHOLDER)
@@ -207,12 +208,14 @@ impl Button {
 
     pub(crate) fn natural_width(&self, ui: &Ui) -> f32 {
         self.width(self.label_galley(ui).as_deref())
+            .max(self.min_width * f32::from(!self.icon_only))
     }
 
     fn draw(self, ui: &mut Ui, segment: Segment, selected: Option<bool>) -> Response {
         let (height, padding, icon_size, _) = self.size.dimensions();
         let galley = self.label_galley(ui);
-        let width = self.width(galley.as_deref());
+        let natural_width = self.width(galley.as_deref());
+        let width = natural_width.max(self.min_width * f32::from(!self.icon_only));
         let leading_width = self.icon_slot_width(self.leading.is_some() || self.loading);
         let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::click());
         response.widget_info(|| {
@@ -249,6 +252,13 @@ impl Button {
                     Color32::TRANSPARENT,
                 ]
             }
+            Variant::DangerSoft => [
+                colors.danger.soft,
+                colors.danger.soft_hover,
+                colors.danger.soft_hover,
+                colors.danger.ring,
+                Color32::TRANSPARENT,
+            ],
             Variant::Soft => [
                 colors.accent.soft,
                 colors.accent.soft_hover,
@@ -261,7 +271,11 @@ impl Button {
                 Color32::TRANSPARENT,
                 colors.text_primary.gamma_multiply(0.08),
                 colors.text_primary.gamma_multiply(0.14),
-                colors.text_primary,
+                if selected == Some(true) {
+                    colors.text_primary
+                } else {
+                    colors.text_secondary
+                },
                 Color32::TRANSPARENT,
             ],
             Variant::Outline | Variant::Ghost => [
@@ -298,10 +312,11 @@ impl Button {
         ui.painter()
             .rect(rect, radius, fill, stroke, StrokeKind::Inside);
 
+        let inset = padding + (width - natural_width) * 0.5;
         let x = if self.icon_only {
             rect.center().x - icon_size * 0.5
         } else {
-            rect.left() + padding
+            rect.left() + inset
         };
         let icon_rect = |x| {
             Rect::from_min_size(
@@ -325,7 +340,7 @@ impl Button {
             );
         }
         if let Some(icon) = self.trailing {
-            let _ = icon.paint(ui, icon_rect(rect.right() - padding - icon_size), text);
+            let _ = icon.paint(ui, icon_rect(rect.right() - inset - icon_size), text);
         }
         motion::focus_ring(ui, &response, radius);
         response
@@ -338,41 +353,12 @@ impl Widget for Button {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Segment {
-    Single,
-    First,
-    Middle,
-    Last,
-}
-
-impl Segment {
-    fn at(index: usize, count: usize) -> Self {
-        if count == 1 {
-            Self::Single
-        } else if index == 0 {
-            Self::First
-        } else if index + 1 == count {
-            Self::Last
-        } else {
-            Self::Middle
-        }
-    }
-
-    fn radius(self, radius: CornerRadius) -> CornerRadius {
+impl Size {
+    fn dimensions(self) -> (f32, f32, f32, f32) {
         match self {
-            Self::Single => radius,
-            Self::First => CornerRadius {
-                ne: 0,
-                se: 0,
-                ..radius
-            },
-            Self::Middle => CornerRadius::ZERO,
-            Self::Last => CornerRadius {
-                nw: 0,
-                sw: 0,
-                ..radius
-            },
+            Self::Sm => (32., 12., 14., 13.),
+            Self::Md => (36., 14., 16., 14.),
+            Self::Lg => (44., 18., 20., 15.),
         }
     }
 }

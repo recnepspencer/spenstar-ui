@@ -1,4 +1,4 @@
-use eframe::egui::{Color32, ComboBox, TextEdit, TextWrapMode, Ui};
+use eframe::egui::{Color32, TextWrapMode, Ui};
 use spenstar_ui::{
     Theme,
     button::{Button, Size, ToggleButtonGroup},
@@ -13,7 +13,7 @@ const TINTS: [&str; 6] = ["Primary", "Muted", "Accent", "Success", "Warning", "D
 pub(crate) struct Browser {
     query: String,
     size: usize,
-    tint: usize,
+    tint: Option<String>,
     copied: Option<Icon>,
 }
 
@@ -22,7 +22,7 @@ impl Default for Browser {
         Self {
             query: String::new(),
             size: 2,
-            tint: 0,
+            tint: Some(TINTS[0].into()),
             copied: None,
         }
     }
@@ -33,27 +33,20 @@ impl Browser {
         let c = Theme::current(ui.ctx()).colors;
         Card::new(CardVariant::Flat).show(ui, |card| {
             card.body(|ui| {
+                ui.spacing_mut().interact_size.y = 38.;
                 ui.horizontal_wrapped(|ui| {
-                    Icon::Search.show(ui, 16., c.text_secondary);
-                    ui.add(
-                        TextEdit::singleline(&mut self.query)
-                            .hint_text("Filter by icon name")
-                            .desired_width(168.),
-                    );
+                    super::widgets::sized_width(ui, 226., 38., |ui| {
+                        super::widgets::search(ui, &mut self.query, "Filter by icon name");
+                    });
                     ToggleButtonGroup::new(
                         "icon-size",
                         ["14", "16", "20", "24", "32"]
                             .map(|label| Button::new(label).size(Size::Sm)),
                     )
                     .show(ui, &mut self.size);
-                    ComboBox::from_id_salt("icon-tint")
-                        .selected_text(TINTS[self.tint])
-                        .width(88.)
-                        .show_ui(ui, |ui| {
-                            for (index, tint) in TINTS.iter().enumerate() {
-                                ui.selectable_value(&mut self.tint, index, *tint);
-                            }
-                        });
+                    super::widgets::sized_width(ui, 140., 38., |ui| {
+                        super::widgets::select(ui, &mut self.tint, &TINTS, "Icon tint");
+                    });
                 });
             });
         });
@@ -95,7 +88,10 @@ impl Browser {
             c.success.ring,
             c.warning.ring,
             c.danger.ring,
-        ][self.tint];
+        ][TINTS
+            .iter()
+            .position(|tint| Some(*tint) == self.tint.as_deref())
+            .unwrap_or_default()];
         ResponsiveGrid::new(110.)
             .gap(8.)
             .max_columns(10)

@@ -1,10 +1,9 @@
-use egui::{Align, Frame, InnerResponse, Layout, Margin, Response, Stroke, Ui};
+use egui::{Align, Frame, InnerResponse, Layout, Margin, Response, Ui, vec2};
 
 use crate::{
     Theme,
-    button::{Button, Size, Variant},
+    button::{Button, Variant},
     icon::Icon,
-    theme::Radius,
     typography::Type,
 };
 
@@ -36,20 +35,25 @@ impl Navbar {
                         |hint| format!("{}     {hint}", search.label),
                     );
                     Button::new(label)
-                        .radius(Radius::Full)
-                        .leading(Icon::Search)
-                        .size(Size::Sm)
-                        .variant(Variant::Outline)
+                        .icon_only(Icon::Search)
+                        .variant(Variant::Secondary)
                         .show(ui)
                 })
             })
             .inner
         };
-        if ui.available_width() < 420. {
-            ui.horizontal(breadcrumbs);
-            ui.horizontal(actions).inner
+        let width = ui.available_width();
+        let layout = Layout::left_to_right(Align::Center);
+        if width < 440. {
+            ui.allocate_ui_with_layout(vec2(width, 46.), layout, |ui| {
+                ui.set_min_height(46.);
+                breadcrumbs(ui);
+            });
+            ui.allocate_ui_with_layout(vec2(width, 36.), layout, actions)
+                .inner
         } else {
-            ui.horizontal(|ui| {
+            ui.allocate_ui_with_layout(vec2(width, 64.), layout, |ui| {
+                ui.set_min_height(64.);
                 breadcrumbs(ui);
                 actions(ui)
             })
@@ -96,19 +100,48 @@ impl<'a> PageHeader<'a> {
     ) -> InnerResponse<Option<Response>> {
         let c = Theme::current(ui.ctx()).colors;
         Frame::new()
-            .fill(c.surface)
-            .stroke(Stroke::new(1., c.border_subtle))
-            .inner_margin(Margin::symmetric(20, 12))
-            .corner_radius(10)
+            .inner_margin(Margin::symmetric(4, 0))
             .show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                let search = Navbar::show(ui, self.search, breadcrumbs, actions);
-                ui.add_space(8.);
-                ui.label(Type::H1.text(self.title));
-                if let Some(subtitle) = self.subtitle {
-                    ui.label(Type::Body.text(subtitle).color(c.text_secondary));
-                }
-                search
+                Navbar::show(
+                    ui,
+                    self.search,
+                    |ui| {
+                        breadcrumbs(ui);
+                        if let Some(subtitle) = self.subtitle {
+                            let title = Type::H1.text(self.title);
+                            let subtitle_text = Type::Small.text(subtitle).color(c.text_muted);
+                            let width = ui
+                                .fonts_mut(|fonts| {
+                                    [(self.title, Type::H1), (subtitle, Type::Small)]
+                                        .into_iter()
+                                        .map(|(text, role)| {
+                                            fonts
+                                                .layout_no_wrap(
+                                                    text.to_owned(),
+                                                    role.font(),
+                                                    c.text_primary,
+                                                )
+                                                .size()
+                                                .x
+                                        })
+                                        .fold(0_f32, f32::max)
+                                })
+                                .min(ui.available_width());
+                            ui.allocate_ui_with_layout(
+                                vec2(width, 41.),
+                                Layout::top_down(Align::Min),
+                                |ui| {
+                                    ui.spacing_mut().item_spacing.y = 2.;
+                                    ui.label(title);
+                                    ui.label(subtitle_text);
+                                },
+                            );
+                        } else {
+                            ui.label(Type::H1.text(self.title));
+                        }
+                    },
+                    actions,
+                )
             })
     }
 }

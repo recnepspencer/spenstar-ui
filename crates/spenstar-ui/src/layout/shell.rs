@@ -1,8 +1,6 @@
-use egui::{
-    CentralPanel, Frame, Id, IdSalt, Key, KeyboardShortcut, Margin, Modifiers, Panel, Stroke, Ui,
-};
+use egui::{CentralPanel, Frame, Id, IdSalt, Key, KeyboardShortcut, Margin, Modifiers, Panel, Ui};
 
-use crate::{Theme, input::ShortcutGuard};
+use crate::{Theme, button::CloseButton, input::ShortcutGuard, typography::Type};
 
 use super::Sidebar;
 
@@ -14,7 +12,11 @@ impl MainContent {
     pub fn show<R>(ui: &mut Ui, content: impl FnOnce(&mut Ui) -> R) -> R {
         let color = Theme::current(ui.ctx()).colors.background;
         CentralPanel::no_frame()
-            .frame(Frame::new().fill(color).inner_margin(Margin::same(16)))
+            .frame(
+                Frame::new()
+                    .fill(color)
+                    .inner_margin(Margin::symmetric(24, 0)),
+            )
             .show(ui, content)
             .inner
     }
@@ -23,6 +25,7 @@ impl MainContent {
 /// Optional right-side shell panel.
 pub struct Inspector<'a> {
     width: f32,
+    heading: Option<(&'a str, &'a mut bool)>,
     content: &'a mut dyn FnMut(&mut Ui),
 }
 
@@ -31,8 +34,15 @@ impl<'a> Inspector<'a> {
     pub fn new(width: f32, content: &'a mut dyn FnMut(&mut Ui)) -> Self {
         Self {
             width: width.max(0.),
+            heading: None,
             content,
         }
+    }
+
+    /// Add a named header and a dismiss button that clears the supplied open state.
+    pub fn heading(mut self, title: &'a str, open: &'a mut bool) -> Self {
+        self.heading = Some((title, open));
+        self
     }
 
     fn show(self, ui: &mut Ui, id: Id) {
@@ -43,14 +53,27 @@ impl<'a> Inspector<'a> {
         let colors = Theme::current(ui.ctx()).colors;
         let frame = Frame::new()
             .fill(colors.surface)
-            .stroke(Stroke::new(1., colors.border_subtle))
-            .inner_margin(Margin::same(12));
+            .inner_margin(Margin::same(20));
         Panel::right(id)
             .resizable(false)
-            .show_separator_line(false)
+            .show_separator_line(true)
             .exact_size(width)
             .frame(frame)
-            .show(ui, self.content);
+            .show(ui, |ui| {
+                ui.visuals_mut().extreme_bg_color = colors.surface_secondary;
+                if let Some((title, open)) = self.heading {
+                    ui.horizontal(|ui| {
+                        ui.label(Type::H3.text(title));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if CloseButton::show(ui).clicked() {
+                                *open = false;
+                            }
+                        });
+                    });
+                    ui.add_space(12.);
+                }
+                (self.content)(ui);
+            });
     }
 }
 

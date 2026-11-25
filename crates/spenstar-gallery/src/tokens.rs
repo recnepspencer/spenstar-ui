@@ -17,6 +17,8 @@ pub(crate) fn show(ui: &mut Ui) {
                 ("Background", c.background),
                 ("Surface", c.surface),
                 ("Elevated", c.surface_elevated),
+                ("Secondary", c.surface_secondary),
+                ("Tertiary", c.surface_tertiary),
                 ("Subtle", c.surface_subtle),
                 ("Overlay", c.overlay),
                 ("Border", c.border),
@@ -30,6 +32,32 @@ pub(crate) fn show(ui: &mut Ui) {
                 let (name, color) = tokens[index];
                 swatch(ui, name, color);
             });
+        });
+    });
+    Card::new(CardVariant::Bordered).show(ui, |card| {
+        card.header("Typography", None);
+        card.body(|ui| {
+            let samples = [
+                ("Page title · 20 / Semibold", Type::H1, "Dispatch overview"),
+                ("Section title · 16 / Medium", Type::H2, "Shipment volume"),
+                ("Figure · 26 / Semibold", Type::Metric, "98.2%"),
+                ("Label · 14 / Medium", Type::Label, "Dispatch coordinator"),
+                ("Body · 14 / Regular", Type::Body, "Assigned to dispatch"),
+                (
+                    "Caption · 12 / Regular",
+                    Type::Caption,
+                    "Last updated 4 min ago",
+                ),
+                ("Mono · 13 / Regular", Type::Mono, "SHP-0482"),
+                ("Shortcut · 11 / Medium", Type::Kbd, "Ctrl + K"),
+            ];
+            ResponsiveGrid::new(180.)
+                .max_columns(4)
+                .show(ui, samples.len(), |ui, index| {
+                    let (label, role, sample) = samples[index];
+                    ui.label(Type::Caption.text(label).color(c.text_muted));
+                    ui.label(role.text(sample));
+                });
         });
     });
     Card::new(CardVariant::Bordered).show(ui, |card| {
@@ -64,34 +92,6 @@ pub(crate) fn show(ui: &mut Ui) {
                     },
                 );
                 ui.add_space(12.);
-            }
-        });
-    });
-    Card::new(CardVariant::Bordered).show(ui, |card| {
-        card.header(
-            "Typography",
-            Some("Inter and JetBrains Mono are bundled for offline use."),
-        );
-        card.body(|ui| {
-            for (role, sample) in [
-                (Type::Display, "Workspace"),
-                (Type::H1, "Dispatch overview"),
-                (Type::H2, "Shipment volume"),
-                (Type::H3, "Activity feed"),
-                (Type::H4, "Recently updated"),
-                (Type::Body, "Your workspace is up to date."),
-                (Type::Small, "Assigned to dispatch"),
-                (Type::Caption, "Last updated 4 min ago"),
-                (Type::Mono, "SHIPMENT-0482"),
-                (Type::Kbd, "Ctrl + K"),
-            ] {
-                ui.label(
-                    Type::Caption
-                        .text(format!("{role:?} · {} pt", role.font().size))
-                        .color(c.text_muted),
-                );
-                ui.label(role.text(sample));
-                ui.add_space(8.);
             }
         });
     });

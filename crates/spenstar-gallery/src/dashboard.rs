@@ -1,217 +1,287 @@
-use eframe::egui::{Rect, Sense, Stroke, Ui, pos2, vec2};
+mod records;
+
+pub(super) use records::RecordAction;
+
+use eframe::egui::{self, Align2, Rect, Sense, Stroke, Ui, pos2, vec2};
 use spenstar_ui::{
     Theme,
-    button::{Button, Size, Variant},
+    button::{Button, Size, ToggleButtonGroup},
+    controls::Tone,
+    form::FieldVariant,
     icon::Icon,
-    layout::{
-        Card, CardVariant, EmptyState, ResponsiveGrid, ScrollShadow, SplitAxis, SplitPane, Surface,
-        Toolbar,
-    },
+    layout::{Card, ResponsiveGrid, Separator, Toolbar},
     typography::Type,
 };
 
-use crate::Page;
+use crate::{shipments::Shipment, widgets};
 
-pub(crate) struct Dashboard {
-    split: f32,
-    draft: bool,
+pub(super) struct Dashboard {
+    tab: usize,
+    period: Option<String>,
+    query: String,
+    exceptions: bool,
+    sorted: bool,
+    show_carrier: bool,
+    notice: Option<String>,
+    remove: Option<String>,
 }
 
 impl Default for Dashboard {
     fn default() -> Self {
         Self {
-            split: 380.,
-            draft: false,
+            tab: 0,
+            period: Some("Monthly".into()),
+            query: String::new(),
+            exceptions: false,
+            sorted: false,
+            show_carrier: true,
+            notice: None,
+            remove: None,
         }
     }
 }
 
-const METRICS: [(&str, &str, &str, Icon); 4] = [
-    ("Open shipments", "128", "+12 this week", Icon::Package),
-    (
-        "On-time delivery",
-        "98.2%",
-        "+2.4 points",
-        Icon::CheckCircle2,
-    ),
-    ("Active carriers", "24", "Across 6 regions", Icon::Truck),
-    ("Exceptions", "3", "1 awaits review", Icon::AlertTriangle),
-];
-
-const ACTIVITY: [(&str, &str, Icon); 9] = [
-    (
-        "Dispatch confirmed",
-        "Shipment #SH-0482 · 4 min ago",
-        Icon::Truck,
-    ),
-    (
-        "Inventory reconciled",
-        "West warehouse · 25 min ago",
-        Icon::Boxes,
-    ),
-    (
-        "Arrival confirmed",
-        "Shipment #SH-0470 · 42 min ago",
-        Icon::Check,
-    ),
-    (
-        "Carrier assignment changed",
-        "Shipment #SH-0468 · 1 hour ago",
-        Icon::Users,
-    ),
-    (
-        "Route exception flagged",
-        "North region · 2 hours ago",
-        Icon::AlertCircle,
-    ),
-    (
-        "Manifest downloaded",
-        "Shipment #SH-0440 · 3 hours ago",
-        Icon::Download,
-    ),
-    (
-        "Pick list generated",
-        "East warehouse · 3 hours ago",
-        Icon::ClipboardList,
-    ),
-    (
-        "Delivery window updated",
-        "Shipment #SH-0428 · 4 hours ago",
-        Icon::Calendar,
-    ),
-    (
-        "Inbound order received",
-        "Central warehouse · 5 hours ago",
-        Icon::Inbox,
-    ),
+const METRICS: [[(&str, &str, &str, Tone); 4]; 3] = [
+    [
+        ("Open shipments", "128", "↑ 9.4%", Tone::Success),
+        ("On-time delivery", "98.2%", "↑ 2.4 pts", Tone::Success),
+        ("Active carriers", "24", "+3", Tone::Success),
+        ("Exceptions", "3", "↑ 1", Tone::Danger),
+    ],
+    [
+        ("Gross sales", "$82,416", "+8.3%", Tone::Success),
+        ("Orders", "364", "+3.2%", Tone::Success),
+        ("Average order", "$226", "+4.8%", Tone::Success),
+        ("Returns", "12", "+1", Tone::Danger),
+    ],
+    [
+        ("Freight costs", "$28,235", "+1.2%", Tone::Danger),
+        ("Fuel surcharge", "$3,426", "−3.4%", Tone::Success),
+        ("Cost per shipment", "$77.57", "−1.9%", Tone::Success),
+        ("Credits", "$520", "+1.0%", Tone::Success),
+    ],
 ];
 
 impl Dashboard {
-    pub(crate) fn show(&mut self, ui: &mut Ui) -> Option<Page> {
-        let c = Theme::current(ui.ctx()).colors;
-        ResponsiveGrid::new(164.)
+    pub fn show(&mut self, ui: &mut Ui, shipments: &[Shipment]) -> Option<RecordAction> {
+        let mut download_requested = false;
+        widgets::toolbar(
+            ui,
+            600.,
+            |ui| {
+                ToggleButtonGroup::new(
+                    "dashboard-period-view",
+                    ["Overview", "Sales", "Expenses"]
+                        .map(|label| Button::new(label).size(Size::Sm)),
+                )
+                .show(ui, &mut self.tab);
+            },
+            |ui| {
+                download_requested = Button::new("Download")
+                    .leading(Icon::Download)
+                    .size(Size::Sm)
+                    .show(ui)
+                    .clicked();
+                widgets::sized_width(ui, 126., 38., |ui| {
+                    widgets::select_styled(
+                        ui,
+                        &mut self.period,
+                        &["Weekly", "Monthly", "Quarterly"],
+                        "Period",
+                        FieldVariant::Capsule,
+                    );
+                });
+                if widgets::action(ui, "Reset report filters", Icon::RefreshCw).clicked() {
+                    self.period = Some("Monthly".into());
+                    self.query.clear();
+                    self.exceptions = false;
+                    self.sorted = false;
+                    self.notice = None;
+                }
+            },
+        );
+        if download_requested {
+            self.notice = Some(match self.export(shipments) {
+                Ok(path) => format!("Saved {}", path.display()),
+                Err(err) => format!("Could not download records: {err}"),
+            });
+        }
+        if let Some(notice) = &self.notice {
+            ui.label(
+                Type::Small
+                    .text(notice)
+                    .color(Theme::current(ui.ctx()).colors.text_muted),
+            );
+        }
+        let palette = Theme::current(ui.ctx()).colors;
+        ResponsiveGrid::new(200.)
             .max_columns(4)
-            .show(ui, METRICS.len(), |ui, index| {
-                let (label, value, note, icon) = METRICS[index];
-                Card::new(CardVariant::Bordered).show(ui, |card| {
+            .show(ui, 4, |ui, index| {
+                let (label, value, trend, tone) = METRICS[self.tab][index];
+                Card::default().show(ui, |card| {
                     card.body(|ui| {
-                        Toolbar::show(ui, |ui| {
-                            icon.show(ui, 16., c.accent.ring);
-                            ui.label(Type::Small.text(label).color(c.text_secondary));
+                        ui.label(Type::Description.text(label).color(palette.text_secondary));
+                        ui.add_space(2.);
+                        ui.horizontal(|ui| {
+                            ui.label(Type::Metric.text(value));
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    widgets::tag(ui, trend, tone);
+                                },
+                            );
                         });
-                        ui.add_space(4.);
-                        ui.label(Type::H2.text(value));
-                        ui.label(Type::Caption.text(note).color(c.text_muted));
                     });
                 });
             });
-        if ui.available_width() >= 560. {
-            SplitPane::new("operations", SplitAxis::Horizontal)
-                .limits(248., 700., 244.)
-                .show(ui, 270., &mut self.split, throughput, activity);
-        } else {
-            throughput(ui);
-            activity(ui);
-        }
-        Surface::show(ui, |ui| {
-            if self.draft {
-                ui.label(Type::H3.text("Shipment draft"));
-                ui.label(
-                    Type::Body
-                        .text("A new draft is ready for carrier and route details.")
-                        .color(c.text_secondary),
-                );
-                if Button::new("Discard draft")
-                    .variant(Variant::Outline)
-                    .show(ui)
-                    .clicked()
-                {
-                    self.draft = false;
+        ResponsiveGrid::new(300.)
+            .max_columns(2)
+            .show(ui, 2, |ui, index| {
+                if index == 0 {
+                    volume(ui, self.tab, self.period.as_deref().unwrap_or("Monthly"));
+                } else {
+                    activity(ui, shipments);
                 }
-                return None;
-            }
-            let (primary, secondary) = EmptyState::new(
-                Icon::Inbox,
-                "No shipment drafts",
-                "Start a draft to assign a carrier and schedule a dispatch.",
-            )
-            .primary(Button::new("New draft").leading(Icon::Plus).size(Size::Sm))
-            .secondary(
-                Button::new("Browse icons")
-                    .variant(Variant::Outline)
-                    .size(Size::Sm),
-            )
-            .show(ui);
-            self.draft = primary.is_some_and(|response| response.clicked());
-            secondary
-                .filter(|response| response.clicked())
-                .map(|_| Page::Icons)
-        })
-        .inner
+            });
+        self.records(ui, shipments)
+    }
+
+    fn export(&self, shipments: &[Shipment]) -> std::io::Result<std::path::PathBuf> {
+        use std::{
+            fs::OpenOptions,
+            io::Write,
+            path::PathBuf,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+        let dir = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .map(|path| path.join("Downloads"))
+            .filter(|path| path.is_dir())
+            .unwrap_or_else(std::env::temp_dir);
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        let path = dir.join(format!("spenstar-shipments-{suffix}.csv"));
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)?;
+        writeln!(file, "Reference,Shipment,Carrier,Status")?;
+        for (_, item) in self.filtered(shipments) {
+            let cells = [&item.id, &item.name, &item.carrier, &item.status].map(|cell| {
+                let prefix = if cell.trim_start().starts_with(['=', '+', '-', '@']) {
+                    "'"
+                } else {
+                    ""
+                };
+                format!("\"{prefix}{}\"", cell.replace('"', "\"\""))
+            });
+            writeln!(file, "{}", cells.join(","))?;
+        }
+        Ok(path)
     }
 }
 
-fn throughput(ui: &mut Ui) {
+fn volume(ui: &mut Ui, tab: usize, period: &str) {
     let c = Theme::current(ui.ctx()).colors;
-    Card::new(CardVariant::Elevated).show(ui, |card| {
-        card.header("Shipment volume", Some("Daily shipments · last seven days"));
+    let title = ["Shipment volume", "Sales performance", "Freight spending"][tab];
+    let values = match period {
+        "Weekly" => [0.32, 0.60, 0.44, 0.68, 0.52, 0.71, 0.59],
+        "Quarterly" => [0.44, 0.39, 0.61, 0.52, 0.71, 0.62, 0.81],
+        _ => [0.38, 0.57, 0.46, 0.69, 0.59, 0.82, 0.75],
+    };
+    Card::default().show(ui, |card| {
+        card.header(title, None);
+        card.body(|ui| {
+            ui.horizontal(|ui| {
+                ui.label(Type::H3.text(["1,248 dispatched", "$82,416 sold", "$28,235 spent"][tab]));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    for (label, color) in [("Plan", c.accent.soft_hover), ("Actual", c.accent.base)]
+                    {
+                        ui.label(Type::Caption.text(label).color(c.text_muted));
+                        let (dot, _) = ui.allocate_exact_size(vec2(7., 7.), Sense::hover());
+                        ui.painter().circle_filled(dot.center(), 3.5, color);
+                    }
+                });
+            });
+        });
         card.body(|ui| {
             let (rect, _) =
-                ui.allocate_exact_size(vec2(ui.available_width(), 104.), Sense::hover());
-            let graph = rect.shrink2(vec2(6., 8.));
-            for fraction in [0., 0.33, 0.66, 1.] {
-                let y = egui_y(graph, fraction);
+                ui.allocate_exact_size(vec2(ui.available_width(), 165.), Sense::hover());
+            let chart = Rect::from_min_max(rect.min + vec2(0., 8.), rect.max - vec2(0., 22.));
+            let col = chart.width() / 7.;
+            for ratio in [0., 0.25, 0.5, 0.75, 1.] {
+                let y = chart.bottom() - chart.height() * ratio;
                 ui.painter()
-                    .hline(graph.x_range(), y, Stroke::new(1., c.divider));
+                    .hline(chart.x_range(), y, Stroke::new(1., c.divider));
             }
-            let values = [0.21, 0.44, 0.37, 0.67, 0.57, 0.78, 0.9];
-            let mut previous = None;
-            for (index, value) in values.into_iter().enumerate() {
-                let x = graph.left() + graph.width() * index as f32 / 6.;
-                let point = pos2(x, egui_y(graph, value));
-                if let Some(previous) = previous {
-                    ui.painter()
-                        .line_segment([previous, point], Stroke::new(2., c.accent.ring));
-                }
-                ui.painter().circle_filled(point, 3., c.accent.ring);
-                previous = Some(point);
-            }
-        });
-        card.footer(|ui| {
-            ui.horizontal(|ui| {
-                ui.label(Type::Caption.text("Mon").color(c.text_muted));
-                ui.with_layout(
-                    eframe::egui::Layout::right_to_left(eframe::egui::Align::Center),
-                    |ui| {
-                        ui.label(Type::Caption.text("Sun").color(c.text_muted));
-                    },
+            for (i, (actual, label)) in values
+                .into_iter()
+                .zip(["1", "5", "9", "13", "17", "21", "25"])
+                .enumerate()
+            {
+                let x = chart.left() + col * (i as f32 + 0.5);
+                let width = (col * 0.20).min(12.);
+                let bar = |left, value, color| {
+                    ui.painter().rect_filled(
+                        Rect::from_min_size(
+                            pos2(left, chart.bottom() - chart.height() * value),
+                            vec2(width, chart.height() * value),
+                        ),
+                        3,
+                        color,
+                    );
+                };
+                bar(x - width - 2., actual, c.accent.base);
+                bar(
+                    x + 2.,
+                    (actual - 0.10 + (i % 3) as f32 * 0.07).max(0.),
+                    c.accent.soft_hover,
                 );
-            });
+                ui.painter().text(
+                    pos2(x, rect.bottom()),
+                    Align2::CENTER_BOTTOM,
+                    label,
+                    Type::Caption.font(),
+                    c.text_muted,
+                );
+            }
         });
     });
 }
 
-fn egui_y(rect: Rect, fraction: f32) -> f32 {
-    rect.bottom() - rect.height() * fraction
-}
-
-fn activity(ui: &mut Ui) {
+fn activity(ui: &mut Ui, shipments: &[Shipment]) {
     let c = Theme::current(ui.ctx()).colors;
-    Card::new(CardVariant::Bordered).show(ui, |card| {
-        card.header("Recent activity", Some("Dispatch and inventory events"));
+    Card::default().show(ui, |card| {
+        card.header("Recent activity", Some("Latest updates across the network"));
         card.body(|ui| {
-            ScrollShadow::new("activity", 158.).show(ui, |ui| {
-                ui.spacing_mut().item_spacing.y = 9.;
-                for (label, note, icon) in ACTIVITY {
-                    Toolbar::show(ui, |ui| {
-                        icon.show(ui, 16., c.accent.ring);
-                        ui.vertical(|ui| {
-                            ui.label(Type::Small.text(label));
-                            ui.label(Type::Caption.text(note).color(c.text_secondary));
-                        });
-                    });
+            ui.set_min_height(166.);
+            ui.spacing_mut().item_spacing.y = 6.;
+            for (index, row) in shipments.iter().take(3).enumerate() {
+                if index > 0 {
+                    Separator::Horizontal.show(ui);
                 }
-            });
+                Toolbar::show(ui, |ui| {
+                    let (rect, _) = ui.allocate_exact_size(vec2(34., 34.), Sense::hover());
+                    ui.painter()
+                        .circle_filled(rect.center(), 17., c.surface_secondary);
+                    let _ = Icon::Truck.svg().paint(
+                        ui,
+                        Rect::from_center_size(rect.center(), vec2(16., 16.)),
+                        c.text_secondary,
+                    );
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 2.;
+                        ui.add(egui::Label::new(Type::Label.text(&row.name)).truncate());
+                        ui.label(
+                            Type::Small
+                                .text(format!("{} · {}", row.id, row.hub))
+                                .color(c.text_muted),
+                        );
+                    });
+                });
+            }
         });
     });
 }

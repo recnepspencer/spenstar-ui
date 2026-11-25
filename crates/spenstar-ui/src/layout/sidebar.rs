@@ -44,8 +44,8 @@ impl CollapseMode {
     /// Resting width in egui points.
     pub const fn width(self) -> f32 {
         match self {
-            Self::Expanded => 244.,
-            Self::IconRail => 68.,
+            Self::Expanded => 240.,
+            Self::IconRail => 64.,
             Self::Offcanvas => 0.,
         }
     }
@@ -170,7 +170,7 @@ impl Sidebar {
         let inset = (width / 8.).clamp(0., 8.) as i8;
         let frame = Frame::new().fill(c.surface);
         let frame = match self.variant {
-            SidebarVariant::Standard => frame,
+            SidebarVariant::Standard => frame.fill(c.background),
             SidebarVariant::Inset => frame
                 .outer_margin(Margin::same(inset))
                 .corner_radius(12)
@@ -204,7 +204,7 @@ impl Sidebar {
             return None;
         }
         let colors = Theme::current(ui.ctx()).colors;
-        let top = Frame::new().inner_margin(Margin::same(8));
+        let top = Frame::new().inner_margin(Margin::symmetric(12, 8));
         Panel::top("sidebar-header")
             .resizable(false)
             .frame(top)
@@ -234,13 +234,19 @@ impl Sidebar {
             })
             .inner;
 
+        let fill = if self.variant == SidebarVariant::Standard {
+            colors.background
+        } else {
+            colors.surface
+        };
         let navigation =
             ScrollShadow::new(("sidebar-native-scroll", page.id), ui.available_height())
-                .fill(colors.surface)
+                .fill(fill)
                 .show(ui, |ui| {
                     Frame::new()
                         .inner_margin(Margin::symmetric(8, 2))
                         .show(ui, |ui| {
+                            ui.spacing_mut().item_spacing.y = 3.;
                             let mut event = None;
                             if let Some(parent) = page.parent
                                 && row(
@@ -257,11 +263,16 @@ impl Sidebar {
                             }
                             for section in page.sections {
                                 if !compact && !section.label.is_empty() {
-                                    ui.add_space(8.);
-                                    ui.label(
-                                        Type::Caption
-                                            .text(section.label)
-                                            .color(colors.text_secondary),
+                                    ui.add_space(12.);
+                                    Frame::new().inner_margin(Margin::symmetric(12, 2)).show(
+                                        ui,
+                                        |ui| {
+                                            ui.label(
+                                                Type::SectionLabel
+                                                    .text(section.label)
+                                                    .color(egui::Color32::from_rgb(113, 113, 122)),
+                                            );
+                                        },
                                     );
                                 }
                                 for item in section.items {

@@ -23,6 +23,51 @@ fn each_gallery_page_paints_content_at_desktop_and_compact_widths() {
                 ],
             ),
             (
+                Page::Orders,
+                [
+                    "Manage and track customer orders.",
+                    "Search orders…",
+                    "Customer",
+                    "Avery Chen",
+                ],
+            ),
+            (
+                Page::Tracker,
+                [
+                    "Track work across your team.",
+                    "Completed",
+                    "In progress",
+                    "Improve form validation",
+                ],
+            ),
+            (
+                Page::Inbox,
+                [
+                    "Dispatch dashboard review",
+                    "Search messages…",
+                    "Casey Imani",
+                    "2 messages",
+                ],
+            ),
+            (
+                Page::Settings,
+                [
+                    "Organization name",
+                    "Organization bio",
+                    "Organization email",
+                    "Workspace appearance",
+                ],
+            ),
+            (
+                Page::Workspace,
+                [
+                    "Search the queue…",
+                    "Dispatch queue",
+                    "Shipment details",
+                    "Handling notes",
+                ],
+            ),
+            (
                 Page::Buttons,
                 ["Variants", "Accent", "Icons & states", "Grouped actions"],
             ),
@@ -142,4 +187,72 @@ fn palette_click_updates_the_live_gallery_theme() {
     }
     assert_eq!(gallery.theme.accent, Accent::Violet);
     assert_eq!(Theme::current(&ctx).accent, Accent::Violet);
+}
+
+#[test]
+fn appearance_opens_dropdown_and_closes_optional_inspector() {
+    use eframe::egui::{Event, FullOutput, Modifiers, PointerButton, Pos2};
+
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(&ctx);
+    let mut draw = |events| {
+        let mut frame = ctx.run_ui(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1280., 820.))),
+                events,
+                ..Default::default()
+            },
+            |ui| gallery.show(ui),
+        );
+        frame.textures_delta.clear();
+        frame
+    };
+    let find = |frame: &FullOutput, label: &str| {
+        frame
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .and_then(|update| {
+                update.nodes.iter().find_map(|(_, node)| {
+                    (node.label() == Some(label))
+                        .then(|| node.bounds())
+                        .flatten()
+                })
+            })
+            .map(|bounds| {
+                pos2(
+                    ((bounds.x0 + bounds.x1) * 0.5) as f32,
+                    ((bounds.y0 + bounds.y1) * 0.5) as f32,
+                )
+            })
+    };
+    let mut click = |label| {
+        let frame = draw(vec![]);
+        let Some(at) = find(&frame, label) else {
+            panic!("missing control {label}");
+        };
+        draw(vec![Event::PointerMoved(at)]);
+        for pressed in [true, false] {
+            draw(vec![Event::PointerButton {
+                pos: at,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: Modifiers::NONE,
+            }]);
+        }
+        draw(vec![])
+    };
+    let appearance = click("Appearance");
+    assert!(find(&appearance, "Open inspector").is_some());
+    let dropdown = click("Standard");
+    assert!(find(&dropdown, "Floating").is_some());
+    let appearance = click("Floating");
+    assert!(find(&appearance, "Open inspector").is_some());
+    let inspector = click("Open inspector");
+    assert!(find(&inspector, "Close").is_some());
+    let closed = click("Close");
+    assert!(find(&closed, "Close").is_none());
+    assert!(!gallery.inspector_open);
+    assert_eq!(gallery.shell.sidebar.variant, SidebarVariant::Floating);
 }

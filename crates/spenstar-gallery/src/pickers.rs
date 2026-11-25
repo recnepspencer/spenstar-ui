@@ -62,18 +62,18 @@ impl Default for Demo {
 }
 
 impl Demo {
-    pub(crate) fn show(&mut self, ui: &mut Ui) {
+    pub(crate) fn show(&mut self, ui: &mut Ui, open_select: bool) {
         ResponsiveGrid::new(308.)
             .max_columns(2)
             .show(ui, 4, |ui, index| match index {
-                0 => self.selectors(ui),
-                1 => self.calendar(ui),
-                2 => self.dates(ui),
-                _ => self.time(ui),
+                0 => self.selectors(ui, open_select),
+                1 => self.calendar(ui, open_select),
+                2 => self.time(ui),
+                _ => self.dates(ui),
             });
     }
 
-    fn selectors(&mut self, ui: &mut Ui) {
+    fn selectors(&mut self, ui: &mut Ui, open_select: bool) {
         section(ui, "Dropdowns & autocomplete", |ui| {
             let primary = [
                 SelectOption {
@@ -105,22 +105,6 @@ impl Demo {
                     options: &partners,
                 },
             ];
-            Field::new("Primary facility").show_with(
-                ui,
-                |_| {},
-                |ui, _, id| {
-                    Select {
-                        style: SelectStyle {
-                            leading: Some(Icon::Folder.into()),
-                            ..SelectStyle::default()
-                        },
-                        clearable: true,
-                    }
-                    .show(ui, &mut self.select, &routes)
-                    .response
-                    .labelled_by(id);
-                },
-            );
             Field::new("Authorized facilities").show(ui, |ui, _| {
                 MultiSelect {
                     max_visible_chips: 2,
@@ -166,12 +150,38 @@ impl Demo {
             if !self.recent.is_empty() {
                 ui.label(Type::Small.text(&self.recent));
             }
+            Field::new("Primary facility").show_with(
+                ui,
+                |_| {},
+                |ui, _, id| {
+                    let selected = Select {
+                        style: SelectStyle {
+                            leading: Some(Icon::Folder.into()),
+                            ..SelectStyle::default()
+                        },
+                        clearable: true,
+                    }
+                    .show(ui, &mut self.select, &routes);
+                    if open_select && !selected.open {
+                        eframe::egui::Popup::open_id(
+                            ui.ctx(),
+                            eframe::egui::Popup::default_response_id(&selected.response),
+                        );
+                    }
+                    selected.response.labelled_by(id);
+                },
+            );
         });
     }
 
-    fn calendar(&mut self, ui: &mut Ui) {
+    fn calendar(&mut self, ui: &mut Ui, capturing: bool) {
         section(ui, "Inline calendar", |ui| {
-            Calendar::default().show(ui, &mut self.calendar);
+            let mut calendar = Calendar::default();
+            if capturing {
+                calendar.options.today = CalendarDate::new(2026, 11, 25);
+                self.calendar = calendar.options.today;
+            }
+            calendar.show(ui, &mut self.calendar);
             if let Some(date) = self.calendar {
                 ui.label(Type::Small.text(format!("Selected {date}")));
             }

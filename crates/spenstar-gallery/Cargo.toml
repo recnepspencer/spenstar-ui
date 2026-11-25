@@ -12,6 +12,7 @@ publish = false
 [dependencies]
 spenstar-ui = { workspace = true }
 eframe = { workspace = true }
+png = "0.18"
 
 [lints]
 workspace = true

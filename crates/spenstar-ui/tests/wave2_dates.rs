@@ -205,3 +205,30 @@ fn calendar_arrows_cross_months_and_skip_disabled_days() {
     let (_, picked) = h.draw(key(Key::Enter), &mut render);
     assert_eq!(picked, Some(date(2024, 2, 28)));
 }
+
+#[test]
+fn calendar_aligns_adjacent_dates_to_the_sunday_first_grid() {
+    use spenstar_ui::datetime::Calendar;
+
+    let mut harness = Harness::new(Mode::Light);
+    let today = date(2026, 11, 25);
+    let mut selected = Some(today);
+    let (frame, _) = harness.draw(vec![], |ui| {
+        Calendar {
+            options: CalendarOptions {
+                today: Some(today),
+                ..Default::default()
+            },
+        }
+        .show(ui, &mut selected)
+    });
+    let first = center(&frame, "2026-11-01");
+    let second = center(&frame, "2026-11-02");
+    let adjacent = center(&frame, "2026-12-05");
+    assert!(first.x < second.x);
+    assert_eq!(first.y, second.y);
+    assert_eq!(center(&frame, "2026-11-07").x, adjacent.x);
+    assert_eq!(adjacent.y - first.y, 4. * 36.);
+    let menu = center(&frame, "Next month");
+    assert!(menu.x > center(&frame, "2026-11-06").x && menu.y < first.y);
+}

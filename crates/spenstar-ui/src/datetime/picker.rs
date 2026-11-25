@@ -116,7 +116,7 @@ impl DateField<'_> {
             }
             let mut invalid = self.invalid || parsed.is_none();
             if calendar {
-                if let Some(popup) = popover::show(&anchor, 308., "Date picker", |ui| {
+                if let Some(popup) = popover::show(&anchor, 336., "Date picker", |ui| {
                     let out = Calendar {
                         options: self.options,
                     }
@@ -266,7 +266,7 @@ impl DateRangePicker<'_> {
         let (mut response, _) = Trigger::new(&self.style, &label, range.is_none())
             .indicator(Icon::Calendar)
             .show(ui);
-        if let Some(output) = popover::show(&response, 308., "Date range picker", |ui| {
+        if let Some(output) = popover::show(&response, 336., "Date range picker", |ui| {
             let result = RangeCalendar {
                 options: self.options,
             }
