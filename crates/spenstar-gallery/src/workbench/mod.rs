@@ -1,6 +1,7 @@
 mod conversation;
 mod inspector;
 mod rail;
+mod row;
 #[cfg(test)]
 mod tests;
 mod threads;
@@ -22,6 +23,7 @@ pub(super) struct Workbench {
     threads: Threads,
     rail: bool,
     compact_rail: bool,
+    rail_width: f32,
     inspector: bool,
     trace: bool,
     messages: Vec<(u64, String)>,
@@ -36,6 +38,7 @@ impl Default for Workbench {
             threads: Threads::default(),
             rail: true,
             compact_rail: false,
+            rail_width: 228.,
             inspector: true,
             trace: false,
             messages: Vec::new(),
@@ -67,7 +70,11 @@ impl Workbench {
         } else {
             self.rail
         };
-        let rail_width = if show_rail { 228. } else { 0. };
+        let rail_width = if show_rail {
+            self.resize_rail(ui, rect, palette)
+        } else {
+            0.
+        };
         let inspector_width = if self.inspector && rect.width() - rail_width >= 680. {
             260.
         } else {

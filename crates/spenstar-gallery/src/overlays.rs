@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use eframe::egui::{self, Context, Frame, Margin, Stroke, Ui, vec2};
+use eframe::egui::{self, Context, Frame, Margin, Stroke, Ui};
 use spenstar_ui::{
     Theme,
     button::{Button, Size, Variant},
@@ -394,5 +394,4 @@ fn indicators(ui: &mut Ui) {
     });
     ui.add_space(6.);
     Skeleton::card(ui);
-    Skeleton::rect(vec2(ui.available_width() * 0.48, 8.)).show(ui);
 }

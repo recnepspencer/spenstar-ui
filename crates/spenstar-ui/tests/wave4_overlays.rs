@@ -109,7 +109,7 @@ fn drawers_slide_from_each_edge_keep_the_footer_visible_and_dismiss() {
         let mut open = true;
         let mut render = |ui: &mut Ui| {
             let drawer = Drawer::new("drawer", "Workspace activity", side)
-                .extent(220.)
+                .extent(280.)
                 .show_with_footer(
                     &ctx,
                     &mut open,
@@ -140,10 +140,20 @@ fn drawers_slide_from_each_edge_keep_the_footer_visible_and_dismiss() {
             ctx.content_rect().contains_rect(footer),
             "{side:?} footer {footer:?}"
         );
+        let viewport = ctx.content_rect();
         match side {
-            DrawerSide::Left => assert!((panel.left() - 10.).abs() <= 1.),
-            DrawerSide::Right => assert!((panel.right() - 590.).abs() <= 1., "{panel:?}"),
-            DrawerSide::Bottom => assert!((panel.bottom() - 470.).abs() <= 1., "{panel:?}"),
+            DrawerSide::Left => {
+                assert_eq!(panel.min, viewport.min);
+                assert_eq!(panel.bottom(), viewport.bottom());
+            }
+            DrawerSide::Right => {
+                assert_eq!(panel.max, viewport.max);
+                assert_eq!(panel.top(), viewport.top());
+            }
+            DrawerSide::Bottom => {
+                assert_eq!(panel.max, viewport.max);
+                assert_eq!(panel.left(), viewport.left());
+            }
         }
         let outside = if side == DrawerSide::Left {
             pos2(580., 20.)

@@ -149,3 +149,55 @@ fn thread_context_copy_and_archive_update_the_gallery() {
     assert_ne!(app.gallery.workbench.threads.active().id, 0);
     assert!(painted(&app.settle(), "Thread archived"));
 }
+
+#[test]
+fn project_rail_resizes_and_keeps_the_search_tools_visible() {
+    let mut app = Headless::new();
+    let output = app.settle();
+    assert!(painted(&output, "Spenstar Code"));
+    let search = target(&output, "Search");
+    let filter = target(&output, "Filter threads");
+    let sort = target(&output, "Reverse thread order");
+    let new_thread = target(&output, "New thread");
+    assert_eq!(search.y, filter.y);
+    assert_eq!(filter.y, sort.y);
+    assert_eq!(sort.y, new_thread.y);
+    assert!(search.x < filter.x && filter.x < sort.x && sort.x < new_thread.x);
+    let divider = pos2(228., 240.);
+    let hovered = app.draw(vec![Event::PointerMoved(divider)]);
+    assert_eq!(
+        hovered.platform_output.cursor_icon,
+        egui::CursorIcon::ResizeHorizontal
+    );
+    app.draw(vec![Event::PointerButton {
+        pos: divider,
+        pressed: true,
+        button: PointerButton::Primary,
+        modifiers: Modifiers::NONE,
+    }]);
+    app.draw(vec![Event::PointerMoved(pos2(380., 240.))]);
+    assert_eq!(app.gallery.workbench.rail_width, 340.);
+    app.draw(vec![Event::PointerMoved(pos2(170., 240.))]);
+    assert_eq!(app.gallery.workbench.rail_width, 200.);
+    app.draw(vec![Event::PointerButton {
+        pos: pos2(170., 240.),
+        pressed: false,
+        button: PointerButton::Primary,
+        modifiers: Modifiers::NONE,
+    }]);
+    let compact = app.settle();
+    assert!(target(&compact, "New thread").x < 200.);
+}
+
+#[test]
+fn inline_trace_toggles_its_tool_steps() {
+    let mut app = Headless::new();
+    let frame = app.settle();
+    let trigger = target(&frame, "Worked for 1m 24s");
+    assert!(trigger.x < 400.);
+    assert!(!painted(&frame, "Checked the working tree"));
+    app.click(trigger, PointerButton::Primary);
+    assert!(painted(&app.settle(), "Checked the working tree"));
+    app.click(trigger, PointerButton::Primary);
+    assert!(!painted(&app.settle(), "Checked the working tree"));
+}

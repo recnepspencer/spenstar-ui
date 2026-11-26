@@ -1,4 +1,4 @@
-use egui::{Frame, Margin, Response, Sense, Stroke, Ui, Vec2, vec2};
+use egui::{Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
 
 use crate::{Theme, theme::mix};
 
@@ -31,25 +31,39 @@ impl Skeleton {
     /// Draw a card with an avatar and three lines.
     pub fn card(ui: &mut Ui) -> Response {
         let c = Theme::current(ui.ctx()).colors;
-        let width = ui.available_width();
-        Frame::new()
-            .fill(c.surface)
-            .stroke(Stroke::new(1., c.border_subtle))
-            .inner_margin(Margin::same(12))
-            .corner_radius(12)
-            .show(ui, |ui| {
-                ui.set_width((width - 26.).max(1.));
-                ui.horizontal(|ui| {
-                    Self::circle(30.).show(ui);
-                    ui.vertical(|ui| {
-                        Self::line((width * 0.43).min(ui.available_width())).show(ui);
-                        Self::line((width * 0.26).min(ui.available_width())).show(ui);
-                    });
-                });
-                ui.add_space(3.);
-                Self::line((width * 0.76).min(ui.available_width())).show(ui);
-            })
-            .response
+        let (rect, response) =
+            ui.allocate_exact_size(vec2(ui.available_width(), 82.), Sense::hover());
+        if !ui.is_rect_visible(rect) {
+            return response;
+        }
+        ui.painter().rect(
+            rect,
+            12,
+            c.surface,
+            Stroke::new(1., c.border_subtle),
+            StrokeKind::Inside,
+        );
+        let content = rect.shrink2(vec2(12.0_f32.min(rect.width() * 0.25), 12.));
+        let avatar = Rect::from_min_size(
+            content.min,
+            Vec2::splat(30.0_f32.min(content.width() * 0.22)),
+        );
+        let x = (avatar.right() + 9.).min(content.right());
+        let line = |x, y, width| Rect::from_min_size(pos2(x, y), vec2(width, 9.));
+        let length = (content.right() - x).max(0.);
+        shimmer(ui, avatar, avatar.width() * 0.5);
+        shimmer(ui, line(x, content.top() + 3., length * 0.51), 4.);
+        shimmer(ui, line(x, content.top() + 17., length * 0.32), 4.);
+        shimmer(
+            ui,
+            line(
+                content.left(),
+                content.bottom() - 12.,
+                content.width() * 0.76,
+            ),
+            4.,
+        );
+        response
     }
 
     /// Draw the placeholder and animate it while visible.
@@ -60,32 +74,35 @@ impl Skeleton {
             safe(self.size.y),
         );
         let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
-        if rect.is_positive() && ui.is_rect_visible(rect) {
-            let c = Theme::current(ui.ctx()).colors;
-            let radius = safe(self.radius).min(size.min_elem() * 0.5);
-            ui.painter().rect_filled(rect, radius, c.surface_secondary);
-            let phase = ui.input(|input| (input.time % 1.8 / 1.8) as f32);
-            let angle = (phase * 2. - 1.) * std::f32::consts::PI;
-            let tint = mix(
-                c.surface_secondary,
-                c.text_primary,
-                0.06 * (1. + angle.cos()),
-            );
-            // Clip the moving highlight by repainting the original rounded shape.
-            let x = rect.left() + rect.width() * phase;
-            for band in 0..5 {
-                let spread = rect.width() * (0.20 - band as f32 * 0.034);
-                let mut clip = rect;
-                clip.min.x = (x - spread).max(rect.left());
-                clip.max.x = (x + spread).min(rect.right());
-                ui.painter().with_clip_rect(clip).rect_filled(
-                    rect,
-                    radius,
-                    mix(c.surface_secondary, tint, (band + 1) as f32 / 5.),
-                );
-            }
-            ui.ctx().request_repaint();
-        }
+        shimmer(ui, rect, safe(self.radius).min(size.min_elem() * 0.5));
         response
     }
+}
+
+fn shimmer(ui: &Ui, rect: Rect, radius: f32) {
+    if !rect.is_positive() || !ui.is_rect_visible(rect) {
+        return;
+    }
+    let c = Theme::current(ui.ctx()).colors;
+    ui.painter().rect_filled(rect, radius, c.surface_secondary);
+    let phase = ui.input(|input| (input.time % 1.8 / 1.8) as f32);
+    let angle = (phase * 2. - 1.) * std::f32::consts::PI;
+    let tint = mix(
+        c.surface_secondary,
+        c.text_primary,
+        0.06 * (1. + angle.cos()),
+    );
+    let x = rect.left() + rect.width() * phase;
+    for band in 0..5 {
+        let spread = rect.width() * (0.20 - band as f32 * 0.034);
+        let mut clip = rect;
+        clip.min.x = (x - spread).max(rect.left());
+        clip.max.x = (x + spread).min(rect.right());
+        ui.painter().with_clip_rect(clip).rect_filled(
+            rect,
+            radius,
+            mix(c.surface_secondary, tint, (band + 1) as f32 / 5.),
+        );
+    }
+    ui.ctx().request_repaint();
 }

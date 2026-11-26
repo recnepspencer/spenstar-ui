@@ -3,7 +3,6 @@ use spenstar_ui::{
     button::{Button, Size, Variant},
     feedback::Tone,
     icon::{Icon, SvgIcon},
-    navigation::{Disclosure, DisclosureVariant},
     overlay::{DropdownMenu, MenuItem, Tooltip},
     typography::Type,
 };
@@ -37,7 +36,7 @@ impl Workbench {
             events,
         );
 
-        let width = (rect.width() - 52.).clamp(160., 704.);
+        let width = (rect.width() - 52.).clamp(1., 696.);
         let left = rect.center().x - width * 0.5;
         let stream = Rect::from_min_max(
             pos2(left, rect.top() + 64.),
@@ -48,6 +47,7 @@ impl Workbench {
             pos2(left + width, rect.bottom() - 14.),
         );
         let mut stream_ui = pane(ui, "stream", stream);
+        stream_ui.spacing_mut().scroll.floating = true;
         let selected = self.threads.active().id;
         let title = self.threads.active().title.clone();
         ScrollArea::vertical()
@@ -55,6 +55,7 @@ impl Workbench {
             .stick_to_bottom(true)
             .auto_shrink([false, false])
             .show(&mut stream_ui, |ui| {
+                ui.set_width(width);
                 ui.spacing_mut().item_spacing.y = 7.;
                 if selected == 0 {
                     self.seed_conversation(ui, p);
@@ -113,44 +114,27 @@ impl Workbench {
             .filter(|(thread, _)| *thread == id)
             .count()
             + usize::from(id == 0) * 2;
-        let max_ticks = (stream.height() / 9.).max(0.) as usize;
-        let visible = count.min(max_ticks);
-        for turn in 0..visible {
-            let y = stream.top() + 14. + turn as f32 * 9.;
-            let left = stream.left() - 17.;
-            let (len, color) = if turn + 1 == visible {
-                (9., p.muted)
+        let visible = ((stream.height() - 18.) / 9.).clamp(0., 14.) as usize;
+        let current = count.saturating_sub(1).min(visible.saturating_sub(1));
+        for tick in 0..visible {
+            let y = stream.top() + 14. + tick as f32 * 9.;
+            let left = stream.left() - 18.;
+            let (length, color) = if count > 0 && tick == current {
+                (10., p.muted)
+            } else if tick < count {
+                (7., p.muted.gamma_multiply(0.60))
             } else {
-                (6., p.border)
+                (5., p.muted.gamma_multiply(0.32))
             };
             ui.painter()
-                .hline(left..=left + len, y, Stroke::new(1., color));
+                .hline(left..=left + length, y, Stroke::new(1., color));
         }
     }
 
     fn seed_conversation(&mut self, ui: &mut Ui, p: WorkbenchPalette) {
         user_bubble(ui, p, INITIAL_REQUEST);
         ui.add_space(14.);
-        let mut disclosure = Disclosure::new("workbench-trace", "Worked for 1m 24s");
-        disclosure.variant = DisclosureVariant::Light;
-        disclosure.show(ui, &mut self.trace, |ui| {
-            for (icon, step) in [
-                (
-                    Icon::Terminal,
-                    "Checked the working tree and upstream branch",
-                ),
-                (
-                    Icon::CheckCircle2,
-                    "Ran workspace formatting, lint, and tests",
-                ),
-                (Icon::GitPullRequest, "Recorded the review handoff"),
-            ] {
-                ui.horizontal(|ui| {
-                    icon.show(ui, 14., p.muted);
-                    ui.label(Type::Description.text(step).color(p.muted));
-                });
-            }
-        });
+        self.work_trace(ui, p);
         ui.add_space(13.);
         ui.label(Type::Body.text(ASSISTANT_SUMMARY).color(p.ink));
         ui.add_space(4.);
@@ -222,6 +206,45 @@ impl Workbench {
         });
     }
 
+    fn work_trace(&mut self, ui: &mut Ui, p: WorkbenchPalette) {
+        let chevron = if self.trace { "⌄" } else { "›" };
+        let caption = Type::Description
+            .text(format!("Worked for 1m 24s  {chevron}"))
+            .color(p.muted);
+        let trigger = ui
+            .scope(|ui| {
+                ui.spacing_mut().button_padding.x = 0.;
+                ui.add(egui::Button::new(caption).frame(false))
+            })
+            .inner;
+        trigger.widget_info(|| {
+            egui::WidgetInfo::selected(egui::Role::Button, true, self.trace, "Worked for 1m 24s")
+        });
+        if trigger.clicked() {
+            self.trace = !self.trace;
+        }
+        if self.trace {
+            ui.indent("workbench-trace", |ui| {
+                for (icon, step) in [
+                    (
+                        Icon::Terminal,
+                        "Checked the working tree and upstream branch",
+                    ),
+                    (
+                        Icon::CheckCircle2,
+                        "Ran workspace formatting, lint, and tests",
+                    ),
+                    (Icon::GitPullRequest, "Recorded the review handoff"),
+                ] {
+                    ui.horizontal(|ui| {
+                        icon.show(ui, 14., p.muted);
+                        ui.label(Type::Description.text(step).color(p.muted));
+                    });
+                }
+            });
+        }
+    }
+
     fn composer(&mut self, ui: &mut Ui, p: WorkbenchPalette) {
         const MODEL_OPTIONS: [&str; 3] = ["4 Neon High", "6.2 Sol Ultrafast", "Opus 5.5 High"];
         const PAPERCLIP: SvgIcon = SvgIcon::from_static(
@@ -257,9 +280,8 @@ impl Workbench {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let send = Button::new("Send message")
                         .icon_only(Icon::ArrowUp)
-                        .variant(Variant::Soft)
+                        .variant(Variant::Accent)
                         .size(Size::Sm)
-                        .enabled(!self.draft.trim().is_empty())
                         .show(ui);
                     Tooltip::new("Send message").show(&send);
                     if send.clicked() {
@@ -276,7 +298,7 @@ impl Workbench {
                     }
                     let model = Button::new(self.model)
                         .trailing(Icon::ChevronDown)
-                        .variant(Variant::Secondary)
+                        .variant(Variant::Ghost)
                         .size(Size::Sm)
                         .show(ui);
                     let items = MODEL_OPTIONS

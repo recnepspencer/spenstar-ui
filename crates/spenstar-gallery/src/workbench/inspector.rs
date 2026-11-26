@@ -8,7 +8,7 @@ use spenstar_ui::{
     typography::Type,
 };
 
-use super::{WorkbenchPalette, notify};
+use super::{WorkbenchPalette, notify, row};
 
 pub(super) struct Git {
     branch: &'static str,
@@ -56,12 +56,9 @@ impl Git {
                         Icon::Cpu.show(ui, 14., p.muted);
                         ui.label(Type::SectionLabel.text("MAC-STUDIO-M5").color(p.ink));
                     });
-                    let editor = Button::new("Open in Editor")
-                        .leading(Icon::Code2)
-                        .trailing(Icon::ChevronDown)
-                        .variant(Variant::Secondary)
-                        .size(Size::Sm)
-                        .show(ui);
+                    let editor = row::trigger(ui, p, "Open in Editor", Some(Icon::Code2), |ui| {
+                        Icon::ChevronDown.show(ui, 12., p.muted);
+                    });
                     if let Some(editor_name) = self.editor {
                         Tooltip::new(editor_name).show(&editor);
                     }
@@ -87,12 +84,9 @@ impl Git {
                         ui.label(Type::Mono.text(script).color(p.muted));
                     }
                     divider(ui, p);
-                    let branch = Button::new(self.branch)
-                        .leading(Icon::GitBranch)
-                        .trailing(Icon::ChevronDown)
-                        .variant(Variant::Secondary)
-                        .size(Size::Sm)
-                        .show(ui);
+                    let branch = row::trigger(ui, p, self.branch, Some(Icon::GitBranch), |ui| {
+                        Icon::ChevronDown.show(ui, 12., p.muted);
+                    });
                     let branches = ["main", "orchestrator-fork", "sol/w4-overlays-feedback"]
                         .map(|name| MenuItem::action(name, name).checked(self.branch == name));
                     if let Some(branch) = DropdownMenu::new("workbench-branches")
@@ -124,28 +118,39 @@ impl Git {
                     if control(ui, "Commit", Icon::GitCommit) {
                         self.commit = true;
                     }
-                    let changes = Button::new("Changes vs origin/main")
-                        .leading(Icon::FileText)
-                        .size(Size::Sm)
-                        .variant(Variant::Ghost)
-                        .show(ui);
-                    if changes.clicked() {
-                        self.changes = true;
-                    }
-                    ui.horizontal(|ui| {
-                        ui.add_space(8.);
-                        let c = spenstar_ui::Theme::current(ui.ctx()).colors;
-                        ui.label(Type::Kbd.text("+42").color(c.success.ring));
+                    let c = spenstar_ui::Theme::current(ui.ctx()).colors;
+                    let changes = row::trigger(ui, p, "Changes vs origin/main", None, |ui| {
                         ui.label(Type::Kbd.text("−8").color(c.danger.ring));
+                        ui.label(Type::Kbd.text("+42").color(c.success.ring));
                     });
+                    self.changes |= changes.clicked();
                     divider(ui, p);
-                    ui.label(Type::Label.text("Lineage").color(p.ink));
-                    ui.horizontal(|ui| {
-                        ui.label(Type::Description.text("↳ orchestrator").color(p.muted));
-                        let c = spenstar_ui::Theme::current(ui.ctx()).colors;
-                        Icon::Check.show(ui, 11., c.success.ring);
-                        ui.label(Type::Caption.text("Done").color(c.success.ring));
-                    });
+                    let width = ui.available_width();
+                    let (header, _) =
+                        ui.allocate_exact_size(egui::vec2(width, 22.), egui::Sense::hover());
+                    row::split(
+                        ui,
+                        header.shrink2(egui::vec2(4., 0.)),
+                        |ui| {
+                            Icon::MoreHorizontal.show(ui, 14., p.muted);
+                        },
+                        |ui| {
+                            ui.label(Type::Label.text("Lineage").color(p.ink));
+                        },
+                    );
+                    let (lineage, _) =
+                        ui.allocate_exact_size(egui::vec2(width, 24.), egui::Sense::hover());
+                    row::split(
+                        ui,
+                        lineage.shrink2(egui::vec2(4., 0.)),
+                        |ui| {
+                            ui.label(Type::Caption.text("Done").color(c.success.ring));
+                            Icon::Check.show(ui, 11., c.success.ring);
+                        },
+                        |ui| {
+                            ui.label(Type::Description.text("↳ orchestrator").color(p.muted));
+                        },
+                    );
                 });
         });
     }

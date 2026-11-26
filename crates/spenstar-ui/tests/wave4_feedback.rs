@@ -192,3 +192,27 @@ fn spinner_and_skeleton_paint_visible_geometry_and_repaint() {
             .any(|output| output.repaint_delay.is_zero())
     );
 }
+
+#[test]
+fn skeleton_card_keeps_placeholder_shapes_inside_all_four_padding_edges() {
+    use spenstar_ui::egui::Shape;
+
+    for width in [64., 324.] {
+        let mut h = Harness::new(Mode::Light);
+        let (output, card) = h.draw(vec![], |ui| {
+            ui.set_width(width);
+            Skeleton::card(ui).rect
+        });
+        let surface = Theme::current(&h.ctx).colors.surface_secondary;
+        let shapes = output.shapes.iter().filter_map(|shape| match &shape.shape {
+            Shape::Rect(rect) if rect.fill == surface => Some(rect.rect),
+            _ => None,
+        });
+        let placeholders: Vec<_> = shapes.collect();
+        assert!(placeholders.len() >= 4);
+        let inside = card.shrink(12.);
+        for rect in placeholders {
+            assert!(inside.contains_rect(rect), "{inside:?} {rect:?}");
+        }
+    }
+}

@@ -1,6 +1,7 @@
 //! Floating dialogs, drawers, menus, popovers, and tooltips.
 mod anchored;
 mod dialog;
+mod drawer;
 mod menu;
 mod menu_item;
 mod menu_row;
@@ -8,8 +9,9 @@ mod panel;
 
 pub use anchored::{Popover, Tooltip};
 pub use dialog::{AlertDialog, AlertDialogResponse};
+pub use drawer::{Drawer, DrawerSide};
 pub use menu::{ContextMenu, DropdownMenu, MenuItem};
-pub use panel::{Drawer, DrawerSide, Modal, PanelResponse};
+pub use panel::{Modal, PanelResponse};
 
 use egui::{Context, Frame, Key, Margin, Modifiers, Stroke, Ui};
 
