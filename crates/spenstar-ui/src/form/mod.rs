@@ -6,7 +6,7 @@ mod text;
 
 pub use crate::button::Size;
 pub use area::TextArea;
-pub(crate) use entry::{EntryStyle, icon_button, step_keys};
+pub(crate) use entry::{EntryStyle, icon_button, icon_button_with_colors, step_keys};
 pub use number::{NumberField, NumberResponse};
 pub use text::{SearchField, SearchResponse, TextField};
 

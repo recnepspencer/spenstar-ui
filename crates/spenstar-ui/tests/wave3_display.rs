@@ -197,3 +197,78 @@ fn display_widgets_paint_in_both_themes_and_copy_the_exact_source() {
         location(&feedback, "Copied");
     }
 }
+
+#[test]
+fn removable_solid_chips_paint_aa_remove_icons_at_rest_and_on_hover() {
+    use spenstar_ui::{
+        egui::{Event, FullOutput, Pos2, TextureId, epaint::Shape},
+        icon::SvgIconEngine,
+    };
+
+    fn remove_paint(output: &FullOutput) -> (Pos2, TextureId, Color32) {
+        let mut fills = Vec::new();
+        for clipped in &output.shapes {
+            match &clipped.shape {
+                Shape::Rect(rect) if rect.fill.is_opaque() => fills.push(rect),
+                Shape::Mesh(mesh) if mesh.texture_id != TextureId::default() => {
+                    let center = mesh.calc_bounds().center();
+                    let background = fills
+                        .iter()
+                        .rev()
+                        .find(|rect| rect.rect.contains(center))
+                        .unwrap_or_else(|| panic!("missing remove target background"));
+                    return (center, mesh.texture_id, background.fill);
+                }
+                _ => {}
+            }
+        }
+        panic!("missing painted remove icon")
+    }
+
+    for mode in [Mode::Light, Mode::Dark] {
+        for (tone, accent) in [
+            (Tone::Neutral, Accent::Blue),
+            (Tone::Accent, Accent::Blue),
+            (Tone::Success, Accent::Blue),
+            (Tone::Warning, Accent::Blue),
+            (Tone::Danger, Accent::Blue),
+            (Tone::Accent, Accent::Custom(Color32::from_gray(117))),
+        ] {
+            let ctx = Context::default();
+            let theme = Theme::new(mode, accent);
+            theme.install(&ctx);
+            let mut chip = Chip::new("Removable");
+            chip.badge.variant = BadgeVariant::Solid;
+            chip.badge.tone = tone;
+            chip.removable = true;
+            let (fill, ink) = chip.badge.colors(theme, false);
+            let mut wanted = TextureId::default();
+            let mut draw = |time, events| {
+                frame(&ctx, time, events, |ui| {
+                    chip.show(ui);
+                    wanted = SvgIconEngine::texture(ui.ctx(), &Icon::X.svg(), 14., ink)
+                        .map(|texture| texture.id())
+                        .unwrap_or_else(|error| {
+                            panic!("could not render the remove icon: {error}")
+                        });
+                })
+            };
+            let (center, rest_icon, background) = remove_paint(&draw(0., vec![]));
+            assert_eq!(background, fill);
+            let (_, hover_icon, hover_fill) =
+                remove_paint(&draw(0.01, vec![Event::PointerMoved(center)]));
+            assert_ne!(hover_fill, fill, "{mode:?} {tone:?} remove hover feedback");
+            for (texture, fill) in [(rest_icon, fill), (hover_icon, hover_fill)] {
+                assert_eq!(
+                    texture, wanted,
+                    "{mode:?} {tone:?} must paint the resolved ink"
+                );
+                let (a, b) = (luminance(ink), luminance(fill));
+                assert!(
+                    (a.max(b) + 0.05) / (a.min(b) + 0.05) >= 4.5,
+                    "{mode:?} {tone:?}"
+                );
+            }
+        }
+    }
+}

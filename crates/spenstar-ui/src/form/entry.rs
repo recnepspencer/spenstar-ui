@@ -1,6 +1,6 @@
 use egui::{
-    Align, Align2, FontId, Frame, InnerResponse, Key, Layout, Margin, Modifiers, Response, Role,
-    Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2,
+    Align, Align2, Color32, FontId, Frame, InnerResponse, Key, Layout, Margin, Modifiers, Response,
+    Role, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2,
 };
 
 use super::{FieldVariant, Size};
@@ -173,16 +173,26 @@ impl EntryStyle {
 }
 
 pub(crate) fn icon_button(ui: &mut Ui, icon: Icon, name: &str) -> Response {
-    let (rect, response) = ui.allocate_exact_size(vec2(22., 22.), Sense::click());
     let colors = Theme::current(ui.ctx()).colors;
+    icon_button_with_colors(ui, icon, name, colors.text_secondary, colors.accent.soft)
+}
+
+pub(crate) fn icon_button_with_colors(
+    ui: &mut Ui,
+    icon: Icon,
+    name: &str,
+    ink: Color32,
+    hover_fill: Color32,
+) -> Response {
+    let (rect, response) = ui.allocate_exact_size(vec2(22., 22.), Sense::click());
     let radius = Radius::Sm.for_size(rect.size());
     if response.hovered() {
-        ui.painter().rect_filled(rect, radius, colors.accent.soft);
+        ui.painter().rect_filled(rect, radius, hover_fill);
     }
     let _ = icon.svg().paint(
         ui,
         egui::Rect::from_center_size(rect.center(), vec2(14., 14.)),
-        colors.text_secondary,
+        ink,
     );
     response.widget_info(|| WidgetInfo::labeled(Role::Button, response.enabled(), name));
     motion::focus_ring(ui, &response, radius);

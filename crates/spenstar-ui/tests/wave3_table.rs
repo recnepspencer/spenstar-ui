@@ -219,3 +219,92 @@ fn resizing_clamps_to_minimum_and_empty_and_loading_skip_callbacks() {
     let empty = draw(0.6, vec![], false, 0, &mut state);
     location(&empty, "No rows to show");
 }
+
+#[test]
+fn resize_drag_and_vertical_scroll_survive_horizontal_overflow() {
+    let ctx = Context::default();
+    Theme::default().install(&ctx);
+    let mut state = TableState::default();
+    let mut draw = |time, events| {
+        let mut visited = Vec::new();
+        let output = frame(&ctx, time, events, |ui| {
+            ui.set_width(640.);
+            let columns = [
+                Column {
+                    min_width: 200.,
+                    ..Column::new("Left", 0.)
+                },
+                Column {
+                    min_width: 350.,
+                    ..Column::new("Right", 0.)
+                },
+            ];
+            let table = DataTable {
+                height: 140.,
+                density: Density::Compact,
+                ..DataTable::new("overflow", &columns)
+            };
+            let source =
+                TableRows::new(0, 1000, |_| true, |i| i as u64, |_, a: usize, b| a.cmp(&b));
+            visited.clear();
+            table.show(ui, &mut state, source, |ui, row, column| {
+                if column == 0 {
+                    visited.push(row);
+                    ui.label(format!("Row {row}"));
+                }
+            });
+        });
+        (output, visited)
+    };
+
+    let (initial, _) = draw(0., vec![]);
+    let body = location(&initial, "Row 1");
+    let wheel = |phase, delta| Event::MouseWheel {
+        unit: MouseWheelUnit::Point,
+        delta: vec2(0., delta),
+        phase,
+        source: MouseWheelSource::Trackpad,
+        modifiers: Modifiers::NONE,
+    };
+    draw(
+        0.1,
+        vec![Event::PointerMoved(body), wheel(TouchPhase::Start, 0.)],
+    );
+    draw(0.2, vec![wheel(TouchPhase::Move, -1037.)]);
+    draw(0.3, vec![wheel(TouchPhase::End, 0.)]);
+    let (scrolled, rows) = draw(1., vec![]);
+    assert!(rows[0] > 0, "the table must be scrolled before resizing");
+    let anchor = format!("Row {}", rows[1]);
+    let anchor_y = location(&scrolled, &anchor).y;
+    let right_edge = |output| {
+        texts(output)
+            .into_iter()
+            .find_map(|(text, rect)| (text == "Right").then_some(rect))
+            .unwrap_or_else(|| panic!("missing right column"))
+    };
+    let right = right_edge(&scrolled);
+    let start = pos2(right.left() - 15., right.center().y);
+    let at = |dx| start + vec2(dx, 0.);
+    let press = |pos, pressed| Event::PointerButton {
+        pos,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    draw(1.1, vec![Event::PointerMoved(start), press(start, true)]);
+    draw(1.2, vec![Event::PointerMoved(at(45.))]);
+    draw(1.3, vec![Event::PointerMoved(at(105.))]);
+
+    // The preceding drag delta makes the next frame overflow the viewport.
+    let (overflow, visible) = draw(1.4, vec![Event::PointerMoved(at(150.))]);
+    assert_eq!(visible[0], rows[0], "first visible row changed on overflow");
+    assert_eq!(location(&overflow, &anchor).y, anchor_y);
+    assert!((right_edge(&overflow).left() - right.left() - 105.).abs() < 1.);
+
+    draw(1.5, vec![press(at(150.), false)]);
+    let (finished, visible) = draw(1.6, vec![]);
+    assert_eq!(visible[0], rows[0]);
+    assert_eq!(location(&finished, &anchor).y, anchor_y);
+    assert!((right_edge(&finished).left() - right.left() - 150.).abs() < 1.);
+    assert!(ctx.dragged_id().is_none());
+}

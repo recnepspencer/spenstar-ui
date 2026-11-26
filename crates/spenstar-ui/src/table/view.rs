@@ -139,48 +139,49 @@ impl<'a> DataTable<'a> {
             let check = if self.selectable { CHECK_WIDTH } else { 0. };
             let widths = header::widths(state, self.columns, available - check - SCROLL_GUTTER);
             let total = (widths.iter().sum::<f32>() + check + SCROLL_GUTTER).max(available);
-            let mut draw = |ui: &mut Ui| {
-                output.sort_changed = ui
-                    .add_enabled_ui(!self.loading, |ui| {
-                        header::draw(ui, state, self.columns, &widths, total, self.selectable)
-                    })
-                    .inner;
-                if self.loading {
-                    self.skeleton(ui, &widths, total);
-                } else if range.is_empty() {
-                    EmptyState::new(Icon::Table, "No rows to show", self.empty_message).show(ui);
-                } else {
-                    let mut area = ScrollArea::vertical()
-                        .max_height(self.safe_height())
-                        .auto_shrink([false, true]);
-                    if updated || viewport_changed {
-                        area = area.vertical_scroll_offset(0.);
-                    }
-                    output.rendered_rows = area
-                        .show_rows(ui, self.density.height(), range.len(), |ui, visible| {
-                            self.rows(
-                                ui,
-                                state,
-                                range.start + visible.start..range.start + visible.end,
-                                &widths,
-                                total,
-                                cell,
-                            );
-                            visible.len()
+            // Keep the header and vertical scroll IDs stable as a resize creates overflow.
+            let scroll_source = if total > available + 0.5 {
+                egui::scroll_area::ScrollSource::default()
+            } else {
+                egui::scroll_area::ScrollSource::NONE
+            };
+            ScrollArea::horizontal()
+                .scroll_source(scroll_source)
+                .auto_shrink([false, true])
+                .show(ui, |ui| {
+                    ui.set_width(total);
+                    output.sort_changed = ui
+                        .add_enabled_ui(!self.loading, |ui| {
+                            header::draw(ui, state, self.columns, &widths, total, self.selectable)
                         })
                         .inner;
-                }
-            };
-            if total > available + 0.5 {
-                ScrollArea::horizontal()
-                    .auto_shrink([false, true])
-                    .show(ui, |ui| {
-                        ui.set_width(total);
-                        draw(ui);
-                    });
-            } else {
-                draw(ui);
-            }
+                    if self.loading {
+                        self.skeleton(ui, &widths, total);
+                    } else if range.is_empty() {
+                        EmptyState::new(Icon::Table, "No rows to show", self.empty_message)
+                            .show(ui);
+                    } else {
+                        let mut area = ScrollArea::vertical()
+                            .max_height(self.safe_height())
+                            .auto_shrink([false, true]);
+                        if updated || viewport_changed {
+                            area = area.vertical_scroll_offset(0.);
+                        }
+                        output.rendered_rows = area
+                            .show_rows(ui, self.density.height(), range.len(), |ui, visible| {
+                                self.rows(
+                                    ui,
+                                    state,
+                                    range.start + visible.start..range.start + visible.end,
+                                    &widths,
+                                    total,
+                                    cell,
+                                );
+                                visible.len()
+                            })
+                            .inner;
+                    }
+                });
             if let Some(size) = self.page_size.filter(|_| !self.loading) {
                 crate::layout::Separator::Horizontal.show(ui);
                 Frame::new()

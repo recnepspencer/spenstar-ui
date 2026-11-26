@@ -3,10 +3,10 @@ use egui::{Color32, Frame, Label, Margin, Response, Sense, Stroke, Ui, vec2};
 use super::{Avatar, Tone};
 use crate::{
     Theme,
-    form::icon_button,
+    form::icon_button_with_colors,
     icon::{Icon, IconSource},
     motion,
-    theme::luminance,
+    theme::{luminance, mix},
     typography::Type,
 };
 
@@ -155,8 +155,14 @@ impl<'a> Badge<'a> {
                                     .truncate(),
                             );
                             removable
-                                && icon_button(ui, Icon::X, &format!("Remove {}", self.label))
-                                    .clicked()
+                                && icon_button_with_colors(
+                                    ui,
+                                    Icon::X,
+                                    &format!("Remove {}", self.label),
+                                    ink,
+                                    remove_hover_fill(fill, ink),
+                                )
+                                .clicked()
                         })
                         .inner
                     })
@@ -181,6 +187,20 @@ impl<'a> Badge<'a> {
             response,
         }
     }
+}
+
+fn remove_hover_fill(fill: Color32, ink: Color32) -> Color32 {
+    let tint = mix(fill, ink, 0.14);
+    if readable(tint, ink) == ink {
+        return tint;
+    }
+    // If tinting toward the glyph would reduce contrast below AA, shade away from it.
+    let opposite = if luminance(ink) > luminance(fill) {
+        Color32::BLACK
+    } else {
+        Color32::WHITE
+    };
+    mix(fill, opposite, 0.14)
 }
 
 pub(super) fn readable(fill: Color32, preferred: Color32) -> Color32 {
