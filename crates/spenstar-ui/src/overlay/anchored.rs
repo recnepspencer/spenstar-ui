@@ -55,6 +55,7 @@ impl Popover {
             return None;
         }
         let ctx = &anchor.ctx;
+        let was_open = ctx.read_response(self.id).is_some();
         let width = self.width.min(ctx.content_rect().width() - 24.).max(1.);
         let height = (ctx.content_rect().height() - 24.).max(1.);
         let mut escape = false;
@@ -77,7 +78,8 @@ impl Popover {
         let on_anchor = ctx
             .pointer_interact_pos()
             .is_some_and(|point| anchor.interact_rect.contains(point));
-        if escape || (self.outside && !on_anchor && output.response.clicked_elsewhere()) {
+        if escape || (was_open && self.outside && !on_anchor && output.response.clicked_elsewhere())
+        {
             *open = false;
             if escape {
                 anchor.request_focus();

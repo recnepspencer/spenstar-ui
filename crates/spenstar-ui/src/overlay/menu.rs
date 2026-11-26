@@ -1,9 +1,11 @@
 use egui::{
-    Context, Id, Key, PointerButton, Popup, PopupCloseBehavior, Pos2, Rect, RectAlign, Response,
-    ScrollArea, Ui,
+    Context, Id, Key, LayerId, Modifiers, Order, PointerButton, Popup, PopupCloseBehavior, Pos2,
+    Rect, RectAlign, Response, ScrollArea, Ui,
 };
 
-use super::{card, key, menu_row::row};
+use crate::input::ShortcutGuard;
+
+use super::{card, menu_row::row};
 
 pub use super::menu_item::MenuItem;
 
@@ -84,11 +86,19 @@ impl DropdownMenu {
             ctx.request_repaint();
             return None;
         }
+        let was_open = ctx.read_response(self.id).is_some();
+        let pressed_layer = if ctx.input(|input| input.pointer.any_pressed()) {
+            ctx.pointer_interact_pos()
+                .and_then(|point| ctx.layer_id_at(point))
+        } else {
+            None
+        };
         let rect = ctx.content_rect();
         let width = self.width.min(rect.width() - 20.).max(1.);
         let mut frame = MenuFrame {
             width,
             height: (rect.height() - 20.).max(1.),
+            previous_layers: state.layers,
             ..Default::default()
         };
         let mut popup = Popup::from_response(anchor).id(self.id);
@@ -96,7 +106,9 @@ impl DropdownMenu {
             popup = popup.at_position(point);
         }
         frame.level(popup, items, &mut state.level);
-        let outside = ctx.input(|input| input.pointer.any_click())
+        frame.raise_on_press(ctx, pressed_layer);
+        let outside = was_open
+            && ctx.input(|input| input.pointer.any_click())
             && ctx.pointer_interact_pos().is_some_and(|point| {
                 let on_anchor = state.point.is_none() && anchor.interact_rect.contains(point);
                 !on_anchor && !frame.rects.iter().any(|rect| rect.contains(point))
@@ -109,6 +121,7 @@ impl DropdownMenu {
             }
             ctx.request_repaint();
         } else {
+            state.layers = frame.layers;
             ctx.data_mut(|data| data.insert_temp(self.id, state));
         }
         frame.action
@@ -140,6 +153,7 @@ impl ContextMenu {
 struct State {
     point: Option<Pos2>,
     level: Selection,
+    layers: Vec<LayerId>,
 }
 
 #[derive(Clone, Default)]
@@ -169,11 +183,13 @@ impl Selection {
             .as_ref()
             .is_none_or(|(active, _)| *active != index)
         {
-            let mut child = Self::default();
-            if keyboard {
-                child.step(children, false);
-            }
-            self.child = Some((index, Box::new(child)));
+            self.child = Some((index, Box::default()));
+        }
+        if keyboard
+            && let Some((_, child)) = &mut self.child
+            && child.index.is_none()
+        {
+            child.step(children, false);
         }
     }
 }
@@ -183,6 +199,8 @@ struct MenuFrame<'a> {
     width: f32,
     height: f32,
     rects: Vec<Rect>,
+    layers: Vec<LayerId>,
+    previous_layers: Vec<LayerId>,
     dismiss: bool,
     action: Option<&'a str>,
 }
@@ -198,6 +216,12 @@ impl<'a> MenuFrame<'a> {
         let height = self.height;
         let frame = card(popup.ctx(), 12, 6);
         let id = popup.get_id();
+        let layer = LayerId::new(Order::Foreground, id);
+        // egui supports one level of sublayers. Register every submenu under the root.
+        if let Some(&root) = self.layers.first() {
+            popup.ctx().set_sublayer(root, layer);
+        }
+        self.layers.push(layer);
         let mut back = false;
         let content = popup
             .width(width + 14.)
@@ -259,20 +283,35 @@ impl<'a> MenuFrame<'a> {
         back
     }
 
+    fn raise_on_press(&self, ctx: &Context, pressed: Option<LayerId>) {
+        if self.layers.len() > 1 && pressed.is_some_and(|layer| self.layers.contains(&layer)) {
+            // An egui area raises itself on press. Move the whole stack together so
+            // submenus registered under the same root retain their depth order.
+            for &layer in &self.layers {
+                ctx.move_to_top(layer);
+            }
+        }
+    }
+
     fn keyboard(&mut self, ui: &Ui, items: &[MenuItem<'a>], selection: &mut Selection) -> bool {
-        if key(ui, Key::Escape) {
+        // The deepest level owns keys while any layer of this menu is on top.
+        if !ShortcutGuard::for_overlay(ui).owns_layer_in(&self.previous_layers) {
+            return false;
+        }
+        let key = |key| ui.input_mut(|input| input.consume_key(Modifiers::NONE, key));
+        if key(Key::Escape) {
             self.dismiss = true;
         }
-        if key(ui, Key::ArrowDown) {
+        if key(Key::ArrowDown) {
             selection.step(items, false);
-        } else if key(ui, Key::ArrowUp) {
+        } else if key(Key::ArrowUp) {
             selection.step(items, true);
         }
-        if key(ui, Key::ArrowLeft) {
+        if key(Key::ArrowLeft) {
             return true;
         }
-        let enter = key(ui, Key::Enter);
-        let right = key(ui, Key::ArrowRight);
+        let enter = key(Key::Enter);
+        let right = key(Key::ArrowRight);
         if let Some((
             index,
             MenuItem::Action {
