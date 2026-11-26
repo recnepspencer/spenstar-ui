@@ -55,9 +55,9 @@ impl<'a> Breadcrumbs<'a> {
                         self.separate(ui);
                         let response = crumb(ui, "…").on_hover_text("Show parent pages");
                         egui::Popup::menu(&response).show(|ui| {
-                            for i in 1..end {
-                                if crumb(ui, self.items[i]).clicked() {
-                                    selected = Some(i);
+                            for (index, item) in self.items.iter().enumerate().take(end).skip(1) {
+                                if crumb(ui, item).clicked() {
+                                    selected = Some(index);
                                     ui.close();
                                 }
                             }
