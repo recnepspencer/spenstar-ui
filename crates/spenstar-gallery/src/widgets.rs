@@ -2,7 +2,7 @@ use eframe::egui::{self, Align, Layout, Response, Ui, vec2};
 use spenstar_ui::{
     Theme,
     button::{Button, Size, Variant},
-    controls::Tone,
+    feedback::{Toast, ToastQueue, Tone},
     form::{FieldVariant, SearchField},
     icon::Icon,
     select::{Select, SelectOption, SelectSection, SelectStyle},
@@ -160,4 +160,8 @@ pub(super) fn toolbar(
             ui.horizontal(trailing);
         }
     });
+}
+
+pub(super) fn notify(ctx: &egui::Context, label: &str, tone: Tone) {
+    ToastQueue::notify(ctx, Toast::new(label).tone(tone));
 }

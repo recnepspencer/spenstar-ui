@@ -21,10 +21,12 @@ pub(super) enum Page {
     Portfolio,
     Analytics,
     Data,
+    Overlays,
+    Workbench,
 }
 
 impl Page {
-    pub(super) const ALL: [Self; 15] = [
+    pub(super) const ALL: [Self; 17] = [
         Self::Overview,
         Self::Orders,
         Self::Tracker,
@@ -40,6 +42,8 @@ impl Page {
         Self::Portfolio,
         Self::Analytics,
         Self::Data,
+        Self::Overlays,
+        Self::Workbench,
     ];
 
     pub(super) fn id(self) -> &'static str {
@@ -59,6 +63,8 @@ impl Page {
             Self::Portfolio => "portfolio",
             Self::Analytics => "analytics",
             Self::Data => "data",
+            Self::Overlays => "overlays",
+            Self::Workbench => "workbench",
         }
     }
 
@@ -79,6 +85,8 @@ impl Page {
             Self::Portfolio => "Portfolio",
             Self::Analytics => "Analytics",
             Self::Data => "Data & Charts",
+            Self::Overlays => "Overlays & Feedback",
+            Self::Workbench => "Agent Workbench",
         }
     }
 }
@@ -87,6 +95,7 @@ pub(super) const NAVIGATION: &[MenuSection<'_>] = &[
     MenuSection {
         label: "Templates",
         items: &[
+            MenuItem::new("workbench", "Agent Workbench", Icon::Terminal),
             MenuItem::new("overview", "Dashboard", Icon::LayoutDashboard),
             MenuItem::new("orders", "Orders", Icon::ClipboardList),
             MenuItem::new("crm", "CRM Pipeline", Icon::Kanban),
@@ -107,6 +116,7 @@ pub(super) const NAVIGATION: &[MenuSection<'_>] = &[
             MenuItem::new("forms", "Forms & Controls", Icon::SlidersHorizontal),
             MenuItem::new("pickers", "Pickers & Dates", Icon::Calendar),
             MenuItem::new("data", "Data & Charts", Icon::BarChart3),
+            MenuItem::new("overlays", "Overlays & Feedback", Icon::Layers),
         ],
     },
 ];

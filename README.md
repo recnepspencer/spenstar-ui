@@ -10,13 +10,24 @@ Use Rust 1.95 or later.
 cargo run -p spenstar-gallery
 ```
 
-Explore Dashboard, Orders, CRM Pipeline, Portfolio, Analytics, and the other templates. **Data & Charts** includes a 10,000-row table and examples of navigation and structured text. Open the command palette with **Ctrl+K** (**⌘K** on macOS) or the navbar search button to jump to any page and change appearance. Use **Ctrl+B** (**⌘B** on macOS) to cycle through expanded, rail, and hidden navigation.
+Open **Agent Workbench** for a three-pane coding workspace with project threads, a conversation stream, a live composer, and a Git and lineage inspector. **Changes vs origin/main** toggles a resizable dock with Diff and Files tabs. **Overlays & Feedback** demonstrates dialogs, menus, notifications, and loading states. Use **Ctrl+K** (**⌘K** on macOS) to jump to any gallery page and **Ctrl+B** (**⌘B** on macOS) to cycle gallery navigation.
 
-Capture the 12 Wave 3 gallery scenes at 2× scale (2560 × 1640 pixels for a 1280 × 820-point viewport). Omit `--wave3` to also capture the earlier gallery scenes. The gallery closes on completion.
+Capture the 12 Wave 4 scenes. The gallery renders at 2× and exports 1280 × 820 PNGs, then closes. Use `--wave3` for the Wave 3 set or `--legacy` for the earlier scenes and Wave 3 at 2560 × 1640.
 
 ```sh
-cargo run -p spenstar-gallery -- --capture-dir /tmp/spenstar-shots --wave3
+cargo run -p spenstar-gallery -- --capture-dir /tmp/spenstar-shots
 ```
+
+## Component inventory
+
+| Wave | Components |
+| --- | --- |
+| 1 · Foundation | Light and dark themes, accent palettes, Inter and JetBrains Mono typography, Lucide and custom SVG icons, buttons, button groups, toggle buttons and segmented controls, close and link buttons, surfaces, cards, responsive grids, split panes, app shells, sidebars, inspectors, headers and search triggers, toolbars, scroll shadows, separators, and empty states |
+| 2 · Forms | Fields, input groups, text and search fields, text areas, number fields, checkboxes, radio groups, switches, sliders and range sliders, selects, multi-selects, comboboxes, tags and tag input, color swatches and swatch pickers, calendars, and date, date-range, and time pickers |
+| 3 · Data and navigation | Badges and chips, avatars and avatar groups, KPI cards, description lists, code and diff views, data tables, bar, line, area, donut, funnel, and sparkline charts, breadcrumbs, tabs, pagination, disclosure, accordion, and command palette |
+| 4 · Overlays and feedback | Modal, alert dialog, drawer and bottom sheet, popover, dropdown and context menus with nested submenus, tooltip, toast queue, alert and banner, progress bar and ring, meter, spinner, and skeleton |
+
+The gallery templates include **Agent Workbench**, **Dashboard**, **Orders**, **CRM Pipeline**, **Portfolio**, **Analytics**, **Tracker**, **Inbox**, **Settings**, and **Dispatch Workspace**. Component pages cover Buttons & Triggers, SVG Icon Browser, Tokens & Typography, Forms & Controls, Pickers & Dates, Data & Charts, and Overlays & Feedback.
 
 ## Use the library
 
@@ -75,6 +86,36 @@ fn contact(ui: &mut egui::Ui, email: &mut String) {
 `table::DataTable` renders only the rows in its scroll viewport. Retain a `TableState` per table, supply stable unique row IDs, and increment the `TableRows` revision when rows or filter inputs change. Selection applies across the current filtered result, including pages outside the viewport. The table reports bulk actions for the app to apply to the selected IDs.
 
 `CommandPalette::show` handles the global shortcut through `ShortcutGuard` and returns the activated command ID. Call it after page controls. A button can open it explicitly with `CommandPalette::open`.
+
+## Overlays and feedback
+
+Use stable identities for each overlay. Dialogs, drawers, and popovers accept caller-owned open flags. Dropdown and context menus return the action ID so the caller can update application state. A context menu opens on a secondary click. Render application shortcuts after overlays so `ShortcutGuard` can respect their layers.
+
+```rust
+use spenstar_ui::{
+    button::{Button, Variant},
+    egui,
+    feedback::{Toast, ToastQueue, Tone},
+    overlay::Modal,
+};
+
+fn preferences(ui: &mut egui::Ui, open: &mut bool) {
+    *open |= Button::new("Preferences").show(ui).clicked();
+    let result = Modal::new("workspace-preferences", "Preferences").show(
+        ui.ctx(),
+        open,
+        |ui| ui.label("Apply preferences to this workspace."),
+        |ui| Button::new("Save").variant(Variant::Soft).show(ui).clicked(),
+    );
+    if result.is_some_and(|output| output.footer) {
+        *open = false;
+        ToastQueue::notify(ui.ctx(), Toast::new("Preferences saved").tone(Tone::Success));
+    }
+    ToastQueue::show_context(ui.ctx());
+}
+```
+
+Call `ToastQueue::show_context` once per frame after the rest of the UI. Use a retained `ToastQueue` when you need independent notification stacks or custom placement.
 
 ## License
 

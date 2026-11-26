@@ -29,21 +29,28 @@ impl<'a> ShortcutGuard<'a> {
 
     /// Whether this layer can handle shortcuts and no text editor has focus.
     pub fn allows(self) -> bool {
-        !self.ctx.text_edit_focused()
-            && self.ctx.memory(|memory| {
-                let top = memory
-                    .layer_ids()
-                    .filter(|layer| {
-                        layer.order == Order::Foreground && memory.areas().is_visible(layer)
-                    })
-                    .last();
-                memory.allows_interaction(self.layer)
-                    && top.is_none_or(|layer| {
-                        self.layer == layer
-                            || memory.areas().parent_layer(self.layer) == Some(layer)
-                    })
-            })
-            && (self.overlay || !Popup::is_any_open(self.ctx))
+        !self.ctx.text_edit_focused() && self.owns_layer()
+    }
+
+    pub(crate) fn owns_layer(self) -> bool {
+        self.owns_layer_in(&[])
+    }
+
+    pub(crate) fn owns_layer_in(self, stack: &[LayerId]) -> bool {
+        self.ctx.memory(|memory| {
+            let top = memory
+                .layer_ids()
+                .filter(|layer| {
+                    layer.order == Order::Foreground && memory.areas().is_visible(layer)
+                })
+                .last();
+            memory.allows_interaction(self.layer)
+                && top.is_none_or(|layer| {
+                    self.layer == layer
+                        || stack.contains(&layer)
+                        || memory.areas().parent_layer(self.layer) == Some(layer)
+                })
+        }) && (self.overlay || !Popup::is_any_open(self.ctx))
     }
 
     /// Consume a pressed shortcut, reserving unmodified keys for focused widgets.

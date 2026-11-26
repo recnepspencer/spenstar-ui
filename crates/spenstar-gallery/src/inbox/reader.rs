@@ -272,6 +272,11 @@ impl Composer {
             });
         let (close, send, save) = modal.inner;
         if send || save {
+            crate::widgets::notify(
+                ctx,
+                if send { "Message sent" } else { "Draft saved" },
+                spenstar_ui::feedback::Tone::Success,
+            );
             let thread = Thread {
                 subject: if self.subject.is_empty() {
                     "(No subject)".into()
