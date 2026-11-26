@@ -34,7 +34,7 @@ pub fn focus_ring(ui: &Ui, response: &Response, radius: CornerRadius) {
         data.get_temp(id).unwrap_or(true)
     });
     if response.has_focus() && keyboard {
-        let color = crate::Theme::current(ctx).colors.accent.ring;
+        let color = crate::Theme::current(ctx).focus_color();
         ui.painter().rect_stroke(
             response.rect.expand(FOCUS_RING_GAP),
             radius,

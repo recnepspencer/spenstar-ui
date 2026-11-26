@@ -147,7 +147,12 @@ impl<'a> TextField<'a> {
                     .id(id)
                     .font(style.font())
                     .prefix(prefix.to_owned())
-                    .hint_text(self.placeholder.to_owned())
+                    .hint_text(
+                        Type::Body
+                            .text(self.placeholder)
+                            .font(style.font())
+                            .color(colors.text_muted),
+                    )
                     .password(self.password && !revealed)
                     .char_limit(self.max_len.unwrap_or(usize::MAX))
                     .return_key(None)

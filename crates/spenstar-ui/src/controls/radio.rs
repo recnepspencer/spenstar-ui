@@ -1,4 +1,4 @@
-use egui::{Key, Modifiers, Response, Role, Stroke, Ui, WidgetInfo, vec2};
+use egui::{Key, Modifiers, Response, Role, Ui, WidgetInfo, vec2};
 
 use crate::{Theme, icon::IconSource, motion};
 
@@ -65,10 +65,16 @@ impl RadioGroup<'_> {
                 ui.disable();
             }
             if !self.label.is_empty() {
-                ui.label(crate::typography::Type::Small.text(self.label));
+                ui.label(crate::typography::Type::Label.text(self.label));
             }
-            self.direction
+            let direction = if self.variant == RadioVariant::Card {
+                Direction::Vertical
+            } else {
+                self.direction
+            };
+            direction
                 .show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = 12.;
                     let previous = *selected;
                     let responses: Vec<_> = items
                         .iter()
@@ -119,18 +125,21 @@ impl RadioGroup<'_> {
                 );
             } else {
                 let center = choice.indicator.center();
-                let tint = if selected { c.accent.ring } else { c.border };
-                ui.painter()
-                    .circle(center, 8., c.surface, Stroke::new(1., tint));
+                let tint = if selected {
+                    c.accent.base
+                } else {
+                    c.radio_fill
+                };
+                ui.painter().circle_filled(center, 9., tint);
                 let progress = motion::eased(
                     ui.ctx(),
                     choice.response.id.with("dot"),
                     selected,
                     motion::FAST,
                 );
-                if progress > 0. {
+                if selected && progress > 0. {
                     ui.painter()
-                        .circle_filled(center, 4. * progress, c.accent.base);
+                        .circle_filled(center, 3.5 * progress, egui::Color32::WHITE);
                 }
             }
             let r = choice.response;

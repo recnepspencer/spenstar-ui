@@ -17,34 +17,34 @@ pub(super) struct RowStyle {
 
 pub(super) fn row(ui: &mut Ui, item: MenuItem<'_>, style: RowStyle) -> Response {
     let width = ui.available_width();
-    let (rect, response) = ui.allocate_exact_size(vec2(width, 34.), Sense::click());
+    let (rect, response) = ui.allocate_exact_size(vec2(width, 36.), Sense::click());
     response.widget_info(|| {
         WidgetInfo::selected(Role::Button, response.enabled(), style.selected, item.label)
     });
-    let radius = Radius::Md.for_size(rect.size());
+    let radius = Radius::Full.for_size(rect.size());
     let colors = Theme::current(ui.ctx()).colors;
     let tint = if style.selected {
-        colors.accent.ring
+        colors.text_primary
     } else {
         colors.text_secondary
     };
     if style.selected || response.hovered() {
         let fill = if style.selected {
-            colors.accent.soft_hover
+            colors.default.base
         } else {
-            colors.surface_subtle
+            colors.surface_secondary
         };
         ui.painter().rect_filled(rect, radius, fill);
     }
     let painter = ui.painter();
-    let inset = 10. + style.depth.min(6) as f32 * 10.;
+    let inset = 12. + style.depth.min(6) as f32 * 10.;
     let center = if style.compact {
         rect.center()
     } else {
-        pos2(rect.left() + inset + 8., rect.center().y)
+        pos2(rect.left() + inset + 9., rect.center().y)
     };
     let square = |center, side| Rect::from_center_size(center, vec2(side, side));
-    let _ = item.icon.svg().paint(ui, square(center, 16.), tint);
+    let _ = item.icon.svg().paint(ui, square(center, 18.), tint);
 
     if !style.compact {
         let right = rect.right() - 10.;
@@ -60,7 +60,7 @@ pub(super) fn row(ui: &mut Ui, item: MenuItem<'_>, style: RowStyle) -> Response 
             } else {
                 count.to_string()
             };
-            let badge = painter.layout_no_wrap(count, Type::Caption.font(), colors.text_secondary);
+            let badge = painter.layout_no_wrap(count, Type::Badge.font(), colors.text_secondary);
             text_right -= badge.size().x + 12.;
             let fill = Rect::from_min_max(
                 pos2(text_right + 4., center.y - 9.),
@@ -69,18 +69,22 @@ pub(super) fn row(ui: &mut Ui, item: MenuItem<'_>, style: RowStyle) -> Response 
             painter.rect_filled(
                 fill,
                 Radius::Full.for_size(fill.size()),
-                colors.surface_subtle,
+                colors.surface_secondary,
             );
             painter.galley(fill.center() - badge.size() * 0.5, badge, tint);
         }
-        let text_left = center.x + 16.;
-        let label = WidgetText::from(Type::Small.text(item.label).color(colors.text_primary))
-            .into_galley(
-                ui,
-                Some(TextWrapMode::Truncate),
-                (text_right - text_left).max(0.),
-                Type::Small.font(),
-            );
+        let text_left = center.x + 19.;
+        let role = if style.selected {
+            Type::Label
+        } else {
+            Type::Body
+        };
+        let label = WidgetText::from(role.text(item.label).color(tint)).into_galley(
+            ui,
+            Some(TextWrapMode::Truncate),
+            (text_right - text_left).max(0.),
+            role.font(),
+        );
         painter.galley(
             Align2::LEFT_CENTER
                 .align_size_within_rect(

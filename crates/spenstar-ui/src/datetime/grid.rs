@@ -3,7 +3,14 @@ use egui::{
     vec2,
 };
 
-use crate::{Theme, form::icon_button, icon::Icon, input::lock_arrows, motion, typography::Type};
+use crate::{
+    Theme,
+    button::{Button, Size, Variant},
+    icon::Icon,
+    input::lock_arrows,
+    motion,
+    typography::Type,
+};
 
 use super::{CalendarDate, CalendarOptions, CalendarResponse, DateRange};
 
@@ -21,8 +28,8 @@ const MONTHS: [&str; 12] = [
     "November",
     "December",
 ];
-const WEEKDAYS: [&str; 7] = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-const ROW: f32 = 32.;
+const WEEKDAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const ROW: f32 = 36.;
 
 #[derive(Clone, Copy)]
 struct View {
@@ -60,7 +67,7 @@ pub(super) fn show(
                 .flatten()
                 .find(|day| id.with(day) == focused)
         });
-        let width = ui.available_width().clamp(0., 308.);
+        let width = ui.available_width().clamp(0., 336.);
         let month_delta = header(ui, width, view.cursor, options);
         if month_delta != 0
             && let Some(target) = view.cursor.add_months(month_delta)
@@ -90,7 +97,11 @@ pub(super) fn show(
                 request_focus = true;
             }
         }
-        let (rect, _) = ui.allocate_exact_size(vec2(width, ROW * 7.), Sense::hover());
+        let dates = month_days(view.cursor);
+        let (rect, _) = ui.allocate_exact_size(
+            vec2(width, ROW * (1 + dates.len() / 7) as f32),
+            Sense::hover(),
+        );
         let column = width / 7.;
         let c = Theme::current(ui.ctx()).colors;
         for (index, label) in WEEKDAYS.into_iter().enumerate() {
@@ -99,12 +110,12 @@ pub(super) fn show(
                 pos2(x, rect.top() + ROW * 0.5),
                 Align2::CENTER_CENTER,
                 label,
-                Type::Caption.font(),
-                c.text_secondary,
+                Type::Small.font(),
+                c.text_muted,
             );
         }
         let disabled = ui.new_child(egui::UiBuilder::new().disabled());
-        let days = month_days(view.cursor)
+        let days = dates
             .enumerate()
             .filter_map(|(index, date)| {
                 let date = date?;
@@ -142,7 +153,6 @@ pub(super) fn show(
         });
         let range = preview.or(selected);
         let mut activated = None;
-        let last_day = CalendarDate::days_in_month(view.cursor.year, view.cursor.month);
         for (index, date, response) in days {
             paint_day(
                 ui,
@@ -152,8 +162,9 @@ pub(super) fn show(
                     today,
                     range,
                     preview: preview.is_some(),
-                    left_edge: index % 7 == 0 || date.day == 1,
-                    right_edge: index % 7 == 6 || date.day == last_day,
+                    left_edge: index % 7 == 0,
+                    adjacent: (date.year, date.month) != (view.cursor.year, view.cursor.month),
+                    right_edge: index % 7 == 6,
                 },
             );
             if response.clicked() {
@@ -175,29 +186,50 @@ pub(super) fn show(
     }
 }
 
-fn month_days(cursor: CalendarDate) -> impl Iterator<Item = Option<CalendarDate>> {
+fn month_days(cursor: CalendarDate) -> impl ExactSizeIterator<Item = Option<CalendarDate>> {
     let first = CalendarDate { day: 1, ..cursor };
-    let offset = i32::from(first.weekday());
-    (0..42).map(move |index| {
-        let day = u8::try_from(index - offset + 1).ok()?;
-        CalendarDate::new(first.year, first.month, day)
-    })
+    let offset = i64::from((first.weekday() + 1) % 7);
+    let days = i64::from(CalendarDate::days_in_month(first.year, first.month));
+    let cells = ((offset + days + 6) / 7 * 7) as usize;
+    (0..cells).map(move |index| first.add_days(index as i64 - offset))
 }
 
 fn header(ui: &mut Ui, width: f32, cursor: CalendarDate, options: CalendarOptions<'_>) -> i64 {
-    ui.horizontal(|ui| {
-        let mut change = nav(ui, cursor, options, -12, Icon::ArrowLeft, "Previous year");
-        change += nav(ui, cursor, options, -1, Icon::ChevronLeft, "Previous month");
-        let month = MONTHS[usize::from(cursor.month - 1)];
-        let label_width = (width - 88. - 4. * ui.spacing().item_spacing.x).max(0.);
-        ui.add_sized(
-            [label_width, 28.],
-            egui::Label::new(Type::Small.text(format!("{month} {}", cursor.year))).truncate(),
-        );
-        change += nav(ui, cursor, options, 1, Icon::ChevronRight, "Next month");
-        change += nav(ui, cursor, options, 12, Icon::ArrowRight, "Next year");
-        change
-    })
+    ui.allocate_ui_with_layout(
+        vec2(width, ROW),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            let month = MONTHS[usize::from(cursor.month - 1)];
+            let mut font = Type::Label.font();
+            font.size = 15.;
+            let year_controls = width >= 245.;
+            let controls = if year_controls { 4. } else { 2. };
+            let label_width = (width - (32. + ui.spacing().item_spacing.x) * controls).max(0.);
+            ui.allocate_ui_with_layout(
+                vec2(label_width, ROW),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| {
+                    ui.set_min_width(label_width);
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(format!("{month} {}", cursor.year)).font(font),
+                        )
+                        .truncate(),
+                    );
+                },
+            );
+            let mut change = 0;
+            if year_controls {
+                change += nav(ui, cursor, options, -12, Icon::ArrowLeft, "Previous year");
+            }
+            change += nav(ui, cursor, options, -1, Icon::ChevronLeft, "Previous month");
+            change += nav(ui, cursor, options, 1, Icon::ChevronRight, "Next month");
+            if year_controls {
+                change += nav(ui, cursor, options, 12, Icon::ArrowRight, "Next year");
+            }
+            change
+        },
+    )
     .inner
 }
 
@@ -213,14 +245,13 @@ fn nav(
         let bounded = options.bounded(date);
         (cursor.year, cursor.month) != (bounded.year, bounded.month)
     });
-    let clicked = ui
-        .scope(|ui| {
-            if !enabled {
-                ui.disable();
-            }
-            icon_button(ui, icon, name).clicked()
-        })
-        .inner;
+    let clicked = Button::new(name)
+        .icon_only(icon)
+        .variant(Variant::Ghost)
+        .size(Size::Sm)
+        .enabled(enabled)
+        .show(ui)
+        .clicked();
     if clicked { delta } else { 0 }
 }
 
@@ -251,6 +282,7 @@ struct DayStyle {
     today: CalendarDate,
     range: Option<DateRange>,
     preview: bool,
+    adjacent: bool,
     left_edge: bool,
     right_edge: bool,
 }
@@ -261,12 +293,15 @@ fn paint_day(ui: &Ui, response: &Response, style: DayStyle) {
         today,
         range,
         preview,
+        adjacent,
         left_edge,
         right_edge,
     } = style;
     let c = Theme::current(ui.ctx()).colors;
     let rect = response.rect;
-    let pill = Rect::from_center_size(rect.center(), vec2(rect.width().min(30.), 28.));
+    let diameter = rect.width().min(ROW);
+    let pill = Rect::from_center_size(rect.center(), vec2(diameter, diameter));
+    let rounding = (diameter * 0.5) as u8;
     let inside = range.is_some_and(|r| r.contains(date));
     let endpoint = range.is_some_and(|r| date == r.start || date == r.end);
     if let Some(range) = range.filter(|r| r.start != r.end && inside) {
@@ -302,22 +337,16 @@ fn paint_day(ui: &Ui, response: &Response, style: DayStyle) {
         );
     }
     if endpoint {
-        ui.painter().rect_filled(pill, 14, c.accent.base);
+        ui.painter().rect_filled(pill, rounding, c.accent.base);
     } else if response.hovered() && response.enabled() {
-        ui.painter().rect_filled(pill, 14, c.accent.soft_hover);
+        ui.painter()
+            .rect_filled(pill, rounding, c.accent.soft_hover);
     }
-    if date == today {
+    if date == today && !endpoint {
         ui.painter().rect_stroke(
             pill.shrink(2.),
-            12,
-            Stroke::new(
-                1.,
-                if endpoint {
-                    c.accent.foreground
-                } else {
-                    c.accent.ring
-                },
-            ),
+            rounding.saturating_sub(2),
+            Stroke::new(1., c.accent.base),
             StrokeKind::Inside,
         );
     }
@@ -326,8 +355,10 @@ fn paint_day(ui: &Ui, response: &Response, style: DayStyle) {
     } else {
         c.text_primary
     };
-    if !response.enabled() {
-        color = c.text_muted.gamma_multiply(0.65);
+    if !response.enabled() || (adjacent && !endpoint) {
+        color = c
+            .text_muted
+            .gamma_multiply(if adjacent { 0.55 } else { 0.65 });
     }
     ui.painter().text(
         pill.center(),
@@ -341,5 +372,5 @@ fn paint_day(ui: &Ui, response: &Response, style: DayStyle) {
     });
     let mut focus = response.clone();
     focus.rect = pill.shrink(2.);
-    motion::focus_ring(ui, &focus, 12.into());
+    motion::focus_ring(ui, &focus, rounding.saturating_sub(2).into());
 }

@@ -17,12 +17,16 @@ use egui::{InnerResponse, Ui};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum FieldVariant {
     /// Surface with a full perimeter stroke.
-    #[default]
     Outline,
-    /// Recessed surface with a full perimeter stroke.
+    /// Soft neutral fill with a transparent resting perimeter.
+    #[default]
     Filled,
     /// Flat surface with a bottom rule.
     Underlined,
+    /// Rounded capsule with a neutral fill.
+    Capsule,
+    /// Rounded capsule with a soft accent fill.
+    Tonal,
 }
 
 /// A label, helper text, and validation wrapper for a form control.
@@ -73,9 +77,11 @@ impl<'a> Field<'a> {
             if self.disabled {
                 ui.disable();
             }
+            ui.spacing_mut().item_spacing.y = 6.;
             let label = ui
                 .horizontal(|ui| {
-                    let label = ui.label(Type::Small.text(self.label));
+                    ui.spacing_mut().item_spacing.y = 6.;
+                    let label = ui.label(Type::Label.text(self.label));
                     if self.required {
                         ui.label(Type::Small.text("*").color(c.danger.ring));
                     }
@@ -84,6 +90,7 @@ impl<'a> Field<'a> {
                 })
                 .inner;
             let value = content(ui, self.error.is_some(), label);
+            ui.spacing_mut().item_spacing.y = 4.;
             if let Some(description) = self.description {
                 ui.label(Type::Small.text(description).color(c.text_secondary));
             }

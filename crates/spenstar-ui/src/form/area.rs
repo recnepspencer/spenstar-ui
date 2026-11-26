@@ -1,7 +1,7 @@
 use egui::{Frame, Margin, Response, ScrollArea, TextBuffer, TextEdit, Ui, vec2};
 
 use super::{EntryStyle, entry::counter};
-use crate::typography::Type;
+use crate::{Theme, typography::Type};
 
 /// A multiline text editor with bounded vertical growth.
 #[derive(Clone, Copy, Debug)]
@@ -51,6 +51,7 @@ impl TextArea<'_> {
                 ..Default::default()
             };
             let font = Type::Body.font();
+            let muted = Theme::current(ui.ctx()).colors.text_muted;
             let row_height = ui.fonts_mut(|fonts| fonts.row_height(&font))
                 + ui.spacing().extra_text_line_spacing;
             let min_rows = self.min_rows.clamp(1, 1024);
@@ -60,7 +61,7 @@ impl TextArea<'_> {
             let background = ui.painter().add(egui::Shape::Noop);
             let id = ui.unique_id().with("multiline");
             let shell = Frame::new()
-                .inner_margin(Margin::symmetric(9, 7))
+                .inner_margin(Margin::symmetric(12, 8))
                 .show(ui, |ui| {
                     ScrollArea::vertical()
                         .max_height(
@@ -77,7 +78,7 @@ impl TextArea<'_> {
                                     .desired_rows(min_rows)
                                     .min_size(vec2(0., row_height * min_rows as f32))
                                     .margin(Margin::ZERO)
-                                    .hint_text(self.placeholder.to_owned())
+                                    .hint_text(Type::Body.text(self.placeholder).color(muted))
                                     .char_limit(self.max_len.unwrap_or(usize::MAX))
                                     .frame(egui::Frame::NONE),
                             )

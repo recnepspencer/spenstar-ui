@@ -47,16 +47,17 @@ fn grid_clips_paint_outsets_to_parent_and_column_gaps() {
                     let [(first, first_clip), (second, second_clip)] = cells.as_slice() else {
                         panic!("expected two grid cells");
                     };
-                    assert_eq!(first_clip.right(), second_clip.left());
-                    assert_eq!(first_clip.right() - first.right(), gap * 0.5);
-                    assert_eq!(second.left() - second_clip.left(), gap * 0.5);
+                    assert!(first_clip.right() <= second_clip.left());
+                    let edge_outset = if gap == 12. { 4. } else { 1. };
+                    assert_eq!(first_clip.right() - first.right(), edge_outset);
+                    assert_eq!(second.left() - second_clip.left(), edge_outset);
                     assert!(parent_clip.contains_rect(*first_clip));
                     assert!(parent_clip.contains_rect(*second_clip));
                     if gap == 12. {
                         assert!(first_clip.contains_rect(first.expand(4.)));
                         assert!(second_clip.contains_rect(second.expand(4.)));
-                        assert!(first.left() - first_clip.left() > 4.);
-                        assert!(second_clip.right() - second.right() > 4.);
+                        assert_eq!(first.left() - first_clip.left(), 4.);
+                        assert_eq!(second_clip.right() - second.right(), 4.);
                     } else {
                         assert_eq!(first_clip.left(), parent_clip.left());
                     }

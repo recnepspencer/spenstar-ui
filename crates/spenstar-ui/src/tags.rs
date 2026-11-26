@@ -6,6 +6,7 @@ use crate::{
     controls::Tone,
     form::icon_button,
     icon::{Icon, IconSource},
+    theme::luminance,
     typography::Type,
 };
 
@@ -63,6 +64,14 @@ impl TagGroup {
 pub(crate) fn chip(ui: &mut Ui, tag: &Tag<'_>, width: f32) -> bool {
     let colors = Theme::current(ui.ctx()).colors;
     let tone = tag.tone.palette(colors);
+    let (ink_luminance, fill_luminance) = (luminance(tone.ring), luminance(tone.soft_hover));
+    let contrast =
+        (ink_luminance.max(fill_luminance) + 0.05) / (ink_luminance.min(fill_luminance) + 0.05);
+    let ink = if tag.tone == Tone::Neutral || contrast < 4.5 {
+        colors.text_primary
+    } else {
+        tone.ring
+    };
     Frame::new()
         .fill(tone.soft_hover)
         .corner_radius(12)
@@ -71,24 +80,17 @@ pub(crate) fn chip(ui: &mut Ui, tag: &Tag<'_>, width: f32) -> bool {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 3.;
                 if let Some(icon) = &tag.icon {
-                    icon.show(ui, 12., tone.ring);
+                    icon.show(ui, 12., ink);
                 }
                 let decorations = 12.
                     + if tag.removable { 25. } else { 0. }
                     + if tag.icon.is_some() { 15. } else { 0. };
                 let text_width = ui
                     .painter()
-                    .layout_no_wrap(tag.label.to_owned(), Type::Small.font(), tone.ring)
+                    .layout_no_wrap(tag.label.to_owned(), Type::Badge.font(), ink)
                     .size()
                     .x;
-                let label = egui::Label::new(Type::Small.text(tag.label).color(
-                    if tag.tone == Tone::Neutral {
-                        colors.text_primary
-                    } else {
-                        tone.ring
-                    },
-                ))
-                .truncate();
+                let label = egui::Label::new(Type::Badge.text(tag.label).color(ink)).truncate();
                 ui.add_sized([text_width.min((width - decorations).max(10.)), 20.], label);
                 tag.removable
                     && icon_button(ui, Icon::X, &format!("Remove {}", tag.label)).clicked()

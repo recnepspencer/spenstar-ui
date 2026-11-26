@@ -151,6 +151,7 @@ pub(super) fn label(ui: &mut Ui, label: &str, placeholder: bool, size: Size) {
                 )
                 .color(tint),
         )
+        .selectable(false)
         .truncate(),
     );
 }

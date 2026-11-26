@@ -1,7 +1,12 @@
-use egui::{IdSalt, Rect, Response, Shape, Stroke, StrokeKind, Ui, pos2};
+use egui::{
+    CornerRadius, Frame, IdSalt, Margin, Rect, Response, Shape, Stroke, StrokeKind, Ui, pos2,
+};
 
-use super::{Button, Segment, Variant};
-use crate::{Theme, motion, theme::Radius};
+use super::{Button, Variant};
+use crate::{
+    Theme, motion,
+    theme::{Mode, Radius},
+};
 
 /// A row of closely joined buttons with a single outer border and inner dividers.
 pub struct ButtonGroup {
@@ -115,61 +120,124 @@ impl ToggleButtonGroup {
             .map(|button| button.size)
             .max()
             .unwrap_or_default();
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 0.;
-            let painter = ui.painter().clone();
-            let backdrop = painter.add(Shape::Noop);
-            let indicator = painter.add(Shape::Noop);
-            let responses: Vec<_> = self
-                .buttons
-                .into_iter()
-                .enumerate()
-                .map(|(i, button)| {
-                    let mut response = button
-                        .size(size)
-                        .radius(Radius::Md)
-                        .variant(Variant::Ghost)
-                        .render(ui, Segment::at(i, count), Some(i == index));
-                    if response.clicked() && *selected != i {
-                        *selected = i;
-                        response.mark_changed();
-                        ui.ctx().request_repaint();
+        if count == 0 {
+            return Vec::new();
+        }
+        Frame::new()
+            .inner_margin(Margin::same(3))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 0.;
+                    let painter = ui.painter().clone();
+                    let backdrop = painter.add(Shape::Noop);
+                    let indicator = painter.add(Shape::Noop);
+                    let responses: Vec<_> = self
+                        .buttons
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, button)| {
+                            let mut response = button
+                                .size(size)
+                                .radius(Radius::Full)
+                                .variant(Variant::Ghost)
+                                .render(ui, Segment::Single, Some(i == index));
+                            if response.clicked() && *selected != i {
+                                *selected = i;
+                                response.mark_changed();
+                                ui.ctx().request_repaint();
+                            }
+                            response
+                        })
+                        .collect();
+                    if let (Some(first), Some(last)) = (responses.first(), responses.last()) {
+                        let rect = first.rect.union(last.rect).expand(3.);
+                        let theme = Theme::current(ui.ctx());
+                        let colors = theme.colors;
+                        painter.set(
+                            backdrop,
+                            Shape::rect_filled(
+                                rect,
+                                Radius::Full.for_size(rect.size()),
+                                colors.segmented_track,
+                            ),
+                        );
+                        let target = responses[index].rect;
+                        let ctx = ui.ctx();
+                        let origin = rect.left();
+                        let animate = |name, x| {
+                            origin
+                                + ctx.animate_value_with_time(
+                                    id.with(name),
+                                    x - origin,
+                                    motion::NORMAL,
+                                )
+                        };
+                        let rect = Rect::from_min_max(
+                            pos2(animate("left", target.left()), target.top()),
+                            pos2(animate("right", target.right()), target.bottom()),
+                        );
+                        painter.set(
+                            indicator,
+                            Shape::Vec(vec![
+                                theme
+                                    .shadow()
+                                    .as_shape(rect, Radius::Full.for_size(rect.size()))
+                                    .into(),
+                                Shape::rect_filled(
+                                    rect,
+                                    Radius::Full.for_size(rect.size()),
+                                    if theme.mode == Mode::Light {
+                                        colors.surface
+                                    } else {
+                                        colors.default.base
+                                    },
+                                ),
+                            ]),
+                        );
                     }
-                    response
+                    responses
                 })
-                .collect();
-            if let (Some(first), Some(last)) = (responses.first(), responses.last()) {
-                let rect = first.rect.union(last.rect);
-                let colors = Theme::current(ui.ctx()).colors;
-                painter.set(
-                    backdrop,
-                    Shape::rect_filled(
-                        rect,
-                        Radius::Md.for_size(rect.size()),
-                        colors.surface_subtle,
-                    ),
-                );
-                let target = responses[index].rect.shrink(2.);
-                let ctx = ui.ctx();
-                let origin = rect.left();
-                let animate = |name, x| {
-                    origin + ctx.animate_value_with_time(id.with(name), x - origin, motion::NORMAL)
-                };
-                let rect = Rect::from_min_max(
-                    pos2(animate("left", target.left()), target.top()),
-                    pos2(animate("right", target.right()), target.bottom()),
-                );
-                painter.set(
-                    indicator,
-                    Shape::rect_filled(
-                        rect,
-                        Radius::Sm.for_size(rect.size()),
-                        colors.accent.soft_hover,
-                    ),
-                );
-            }
-            responses
-        })
-        .inner
+                .inner
+            })
+            .inner
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Segment {
+    Single,
+    First,
+    Middle,
+    Last,
+}
+
+impl Segment {
+    fn at(index: usize, count: usize) -> Self {
+        if count == 1 {
+            Self::Single
+        } else if index == 0 {
+            Self::First
+        } else if index + 1 == count {
+            Self::Last
+        } else {
+            Self::Middle
+        }
+    }
+
+    pub(super) fn radius(self, radius: CornerRadius) -> CornerRadius {
+        match self {
+            Self::Single => radius,
+            Self::First => CornerRadius {
+                ne: 0,
+                se: 0,
+                ..radius
+            },
+            Self::Middle => CornerRadius::ZERO,
+            Self::Last => CornerRadius {
+                nw: 0,
+                sw: 0,
+                ..radius
+            },
+        }
     }
 }

@@ -7,6 +7,11 @@ use spenstar_ui::{
 pub(super) enum Page {
     #[default]
     Overview,
+    Orders,
+    Tracker,
+    Inbox,
+    Settings,
+    Workspace,
     Buttons,
     Icons,
     Tokens,
@@ -15,8 +20,13 @@ pub(super) enum Page {
 }
 
 impl Page {
-    pub(super) const ALL: [Self; 6] = [
+    pub(super) const ALL: [Self; 11] = [
         Self::Overview,
+        Self::Orders,
+        Self::Tracker,
+        Self::Inbox,
+        Self::Settings,
+        Self::Workspace,
         Self::Buttons,
         Self::Icons,
         Self::Tokens,
@@ -27,6 +37,11 @@ impl Page {
     pub(super) fn id(self) -> &'static str {
         match self {
             Self::Overview => "overview",
+            Self::Orders => "orders",
+            Self::Tracker => "tracker",
+            Self::Inbox => "inbox",
+            Self::Settings => "settings",
+            Self::Workspace => "workspace",
             Self::Buttons => "buttons",
             Self::Icons => "icons",
             Self::Tokens => "tokens",
@@ -37,7 +52,12 @@ impl Page {
 
     pub(super) fn title(self) -> &'static str {
         match self {
-            Self::Overview => "Dashboard Overview",
+            Self::Overview => "Good morning, Alex",
+            Self::Orders => "Orders",
+            Self::Tracker => "Tracker",
+            Self::Inbox => "Inbox",
+            Self::Settings => "Workspace settings",
+            Self::Workspace => "Dispatch workspace",
             Self::Buttons => "Buttons & Triggers",
             Self::Icons => "SVG Icon Browser",
             Self::Tokens => "Tokens & Typography",
@@ -46,43 +66,36 @@ impl Page {
         }
     }
 
-    pub(super) fn description(self) -> &'static str {
+    pub(super) fn name(self) -> &'static str {
         match self {
-            Self::Overview => "Monitor deliveries, activity, and exceptions across your workspace.",
-            Self::Buttons => {
-                "Try each treatment and see how states, icons, and grouping work together."
-            }
-            Self::Icons => {
-                "Browse the bundled Lucide collection and preview it at any display scale."
-            }
-            Self::Tokens => "Inspect the colors and type styles used throughout the gallery.",
-            Self::Forms => "Edit values, adjust ranges, and try a new accent color.",
-            Self::Pickers => "Search and select options, dates, and times.",
+            Self::Overview => "Dashboard",
+            Self::Settings => "Settings",
+            Self::Workspace => "Workspace",
+            _ => self.title(),
         }
     }
 }
 
-const COMPONENTS: &[MenuItem<'_>] = &[
-    MenuItem::new("buttons", "Buttons & Triggers", Icon::Command),
-    MenuItem::new("icons", "SVG Icon Browser", Icon::Grid).badge(Icon::ALL.len()),
-    MenuItem::new("tokens", "Tokens & Typography", Icon::Palette),
-    MenuItem::new("forms", "Forms & Controls", Icon::SlidersHorizontal),
-    MenuItem::new("pickers", "Pickers & Dates", Icon::Calendar),
-];
 pub(super) const NAVIGATION: &[MenuSection<'_>] = &[
     MenuSection {
-        label: "Workspace",
+        label: "Templates",
         items: &[
-            MenuItem::new("overview", "Overview", Icon::LayoutDashboard),
-            MenuItem::new("library", "Component library", Icon::Layers),
+            MenuItem::new("overview", "Dashboard", Icon::LayoutDashboard),
+            MenuItem::new("orders", "Orders", Icon::ClipboardList),
+            MenuItem::new("tracker", "Tracker", Icon::List),
+            MenuItem::new("inbox", "Inbox", Icon::Mail),
+            MenuItem::new("settings", "Settings", Icon::Settings),
+            MenuItem::new("workspace", "Workspace", Icon::Truck),
         ],
     },
     MenuSection {
-        label: "Gallery",
-        items: &[MenuItem::new("components", "Components", Icon::Package).group(COMPONENTS)],
+        label: "Components",
+        items: &[
+            MenuItem::new("buttons", "Buttons & Triggers", Icon::Command),
+            MenuItem::new("icons", "SVG Icon Browser", Icon::Grid).badge(Icon::ALL.len()),
+            MenuItem::new("tokens", "Tokens & Typography", Icon::Palette),
+            MenuItem::new("forms", "Forms & Controls", Icon::SlidersHorizontal),
+            MenuItem::new("pickers", "Pickers & Dates", Icon::Calendar),
+        ],
     },
 ];
-pub(super) const LIBRARY: &[MenuSection<'_>] = &[MenuSection {
-    label: "Component library",
-    items: COMPONENTS,
-}];
