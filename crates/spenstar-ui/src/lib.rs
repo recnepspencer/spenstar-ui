@@ -2,20 +2,26 @@
 #![forbid(unsafe_code)]
 
 pub mod button;
+pub mod charts;
 pub mod color;
+pub mod command;
 pub mod controls;
 pub mod datetime;
+pub mod display;
 pub mod form;
 pub mod icon;
 pub mod input;
 pub mod layout;
 pub mod motion;
+pub mod navigation;
 mod popover;
 pub mod select;
+pub mod table;
 pub mod tags;
 pub mod theme;
 pub mod typography;
 
+pub use command::CommandPalette;
 pub use egui;
 pub use theme::Theme;
 

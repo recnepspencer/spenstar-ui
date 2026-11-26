@@ -1,13 +1,15 @@
-use eframe::egui::{self, Align, Color32, Id, Layout, Rect, Sense, Ui, vec2};
+use std::hash::{DefaultHasher, Hash, Hasher};
+
+use eframe::egui::{self, Align, Color32, Id, Layout, Rect, Ui};
 use spenstar_ui::{
     Theme,
     button::{Button, CloseButton, Variant},
-    controls::Tone,
     datetime::{CalendarDate, CalendarOptions, DateRange, DateRangePicker},
+    display::{Avatar, Badge, Tone},
     form::{Field, FieldVariant, TextField},
     icon::Icon,
-    layout::{Card, Separator},
     select::SelectStyle,
+    table::{Column, DataTable, TableRows, TableState},
     typography::Type,
 };
 
@@ -37,6 +39,7 @@ pub(super) struct Orders {
     range: Option<DateRange>,
     rows: Vec<Order>,
     active: Option<(Action, Order)>,
+    table: TableState,
 }
 
 impl Default for Orders {
@@ -64,6 +67,7 @@ impl Default for Orders {
             })
             .collect(),
             active: None,
+            table: TableState::default(),
         }
     }
 }
@@ -110,122 +114,127 @@ impl Orders {
         });
 
         let query = self.query.trim().to_lowercase();
-        let shown = self.rows.iter().filter(|order| {
-            let id = format!("#ORD-{}", order.id).to_lowercase();
-            (id.contains(&query)
-                || order.customer.to_lowercase().contains(&query)
-                || order.email.contains(&query))
-                && (self.status.as_deref() == Some("All statuses") || order.status == self.status)
-                && self
-                    .range
-                    .is_none_or(|range| date(order.day).is_some_and(|day| range.contains(day)))
-        });
-        Card::default().show(ui, |card| {
-            card.body(|ui| {
-                ui.spacing_mut().item_spacing.y = 4.;
-                let width = ui.available_width();
-                let expanded = width >= 740.;
-                let compact = width < 465.;
-                let id_width = if compact { 0. } else { 106. };
-                let customer_width =
-                    (width - 134. - id_width - if expanded { 298. } else { 0. }).max(60.);
-                let widths = [
-                    id_width,
-                    customer_width,
-                    if expanded { 108. } else { 0. },
-                    if expanded { 84. } else { 0. },
-                    if expanded { 90. } else { 0. },
-                    108.,
-                ];
-                let band = ui.painter().add(egui::Shape::Noop);
-                ui.spacing_mut().interact_size.y = 28.;
-                let header = ui.horizontal(|ui| {
-                    for (caption, width) in
-                        ["Order", "Customer", "Status", "Total", "Date", "Actions"]
-                            .into_iter()
-                            .zip(widths)
-                    {
-                        if width > 0. {
-                            widgets::sized_width(ui, width, 28., |ui| {
-                                ui.add_space(4.);
-                                ui.label(Type::Badge.text(caption).color(c.text_muted));
-                            });
-                        }
-                    }
-                });
-                ui.painter().set(
-                    band,
-                    egui::Shape::rect_filled(header.response.rect, 8, c.surface_subtle),
-                );
-                let mut count = 0;
-                for order in shown {
-                    if count > 0 {
-                        Separator::Horizontal.show(ui);
-                    }
-                    count += 1;
-                    ui.push_id(order.id, |ui| {
-                        ui.spacing_mut().interact_size.y = 36.;
-                        ui.horizontal(|ui| {
-                            cell(ui, widths[0], |ui| {
-                                ui.label(Type::Mono.text(format!("#ORD-{}", order.id)));
-                            });
-                            cell(ui, widths[1], |ui| customer(ui, order));
-                            cell(ui, widths[2], |ui| {
-                                let status = order.status.as_deref().unwrap_or("");
-                                widgets::tag(
-                                    ui,
-                                    status,
-                                    match status {
-                                        "Paid" => Tone::Success,
-                                        "Pending" => Tone::Warning,
-                                        "Failed" => Tone::Danger,
-                                        _ => Tone::Neutral,
-                                    },
-                                );
-                            });
-                            cell(ui, widths[3], |ui| {
-                                ui.label(Type::Body.text(order.total));
-                            });
-                            cell(ui, widths[4], |ui| {
-                                ui.label(
-                                    Type::Small
-                                        .text(format!("Nov {}, 2026", order.day))
-                                        .color(c.text_muted),
-                                );
-                            });
-                            ui.spacing_mut().item_spacing.x = 4.;
-                            for (label, icon, action) in [
-                                ("View order", Icon::Eye, Action::View),
-                                ("Edit order", Icon::Pencil, Action::Edit),
-                                ("Remove order", Icon::Trash2, Action::Remove),
-                            ] {
-                                let variant = if matches!(action, Action::Remove) {
-                                    Variant::DangerSoft
-                                } else {
-                                    Variant::Secondary
-                                };
-                                if Button::new(label)
-                                    .icon_only(icon)
-                                    .size(spenstar_ui::button::Size::Sm)
-                                    .variant(variant)
-                                    .show(ui)
-                                    .clicked()
-                                {
-                                    self.active = Some((action, order.clone()));
-                                }
-                            }
-                        });
-                    });
+        let columns = [
+            Column {
+                min_width: 110.,
+                ..Column::new("Order", 0.8)
+            },
+            Column {
+                min_width: 160.,
+                ..Column::new("Customer", 2.7)
+            },
+            Column::new("Status", 0.7),
+            Column {
+                min_width: 92.,
+                ..Column::new("Total", 0.6).align(Align::Max)
+            },
+            Column {
+                min_width: 102.,
+                ..Column::new("Date", 0.6)
+            },
+            Column {
+                min_width: 131.,
+                ..Column::new("Actions", 0.1).unsorted()
+            },
+        ];
+        let mut hasher = DefaultHasher::new();
+        (
+            &query,
+            &self.status,
+            self.range
+                .map(|range| (range.start.to_string(), range.end.to_string())),
+        )
+            .hash(&mut hasher);
+        for row in &self.rows {
+            (row.id, &row.customer, &row.status).hash(&mut hasher);
+        }
+        let orders = &self.rows;
+        let rows = TableRows::new(
+            hasher.finish(),
+            orders.len(),
+            |i| {
+                let order = &orders[i];
+                (format!("#ord-{}", order.id).contains(&query)
+                    || order.customer.to_lowercase().contains(&query)
+                    || order.email.contains(&query))
+                    && (self.status.as_deref() == Some("All statuses")
+                        || order.status == self.status)
+                    && self
+                        .range
+                        .is_none_or(|range| date(order.day).is_some_and(|day| range.contains(day)))
+            },
+            |i| u64::from(orders[i].id),
+            |column, a, b| {
+                let (a, b) = (&orders[a], &orders[b]);
+                match column {
+                    1 => a.customer.cmp(&b.customer),
+                    2 => a.status.cmp(&b.status),
+                    3 => amount(a.total).total_cmp(&amount(b.total)),
+                    4 => a.day.cmp(&b.day),
+                    _ => a.id.cmp(&b.id),
                 }
-                if count == 0 {
+            },
+        );
+        let mut active = None;
+        DataTable::new("orders", &columns).show(ui, &mut self.table, rows, |ui, i, column| {
+            let order = &orders[i];
+            match column {
+                0 => {
+                    ui.label(Type::Mono.text(format!("#ORD-{}", order.id)));
+                }
+                1 => customer(ui, order),
+                2 => {
+                    let status = order.status.as_deref().unwrap_or("Unassigned");
+                    let tone = match status {
+                        "Paid" => Tone::Success,
+                        "Pending" => Tone::Warning,
+                        "Failed" => Tone::Danger,
+                        _ => Tone::Neutral,
+                    };
+                    Badge {
+                        tone,
+                        ..Badge::new(status)
+                    }
+                    .show(ui);
+                }
+                3 => {
+                    ui.label(Type::Body.text(order.total));
+                }
+                4 => {
                     ui.label(
-                        Type::Body
-                            .text("No orders match these filters.")
+                        Type::Small
+                            .text(format!("Nov {}, 2026", order.day))
                             .color(c.text_muted),
                     );
                 }
-            })
+                _ => {
+                    ui.spacing_mut().item_spacing.x = 3.;
+                    for (label, icon, action) in [
+                        ("View order", Icon::Eye, Action::View),
+                        ("Edit order", Icon::Pencil, Action::Edit),
+                        ("Remove order", Icon::Trash2, Action::Remove),
+                    ] {
+                        let variant = if matches!(action, Action::Remove) {
+                            Variant::DangerSoft
+                        } else {
+                            Variant::Secondary
+                        };
+                        if Button::new(label)
+                            .icon_only(icon)
+                            .size(spenstar_ui::button::Size::Sm)
+                            .variant(variant)
+                            .show(ui)
+                            .clicked()
+                        {
+                            active = Some((action, order.clone()));
+                        }
+                    }
+                }
+            }
         });
+        if active.is_some() {
+            self.active = active;
+        }
         self.dialog(ui);
     }
 
@@ -314,10 +323,11 @@ impl Orders {
     }
 }
 
-fn cell(ui: &mut Ui, width: f32, content: impl FnOnce(&mut Ui)) {
-    if width > 0. {
-        widgets::width(ui, width, content);
-    }
+fn amount(text: &str) -> f32 {
+    text.trim_start_matches('$')
+        .replace(',', "")
+        .parse()
+        .unwrap_or_default()
 }
 
 fn date(day: u8) -> Option<CalendarDate> {
@@ -327,15 +337,17 @@ fn date(day: u8) -> Option<CalendarDate> {
 fn customer(ui: &mut Ui, order: &Order) {
     let c = Theme::current(ui.ctx()).colors;
     ui.horizontal(|ui| {
-        let (rect, _) = ui.allocate_exact_size(vec2(32., 32.), Sense::hover());
-        let (fill, ink) = [
-            (c.accent.soft_hover, c.text_primary),
-            (c.success.soft, c.success.ring),
-            (c.danger.soft, c.danger.ring),
-            (c.warning.soft, c.warning.ring),
-            (c.default.base, c.text_primary),
-        ][order.id as usize % 5];
-        initials(ui, rect, &order.customer, fill, ink);
+        Avatar {
+            tone: [
+                Tone::Accent,
+                Tone::Success,
+                Tone::Danger,
+                Tone::Warning,
+                Tone::Neutral,
+            ][order.id as usize % 5],
+            ..Avatar::new(&order.customer)
+        }
+        .show(ui);
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 2.;
             ui.add(egui::Label::new(Type::Label.text(&order.customer)).truncate());

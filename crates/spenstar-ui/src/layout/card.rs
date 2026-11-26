@@ -37,6 +37,7 @@ pub enum CardVariant {
 pub struct Card<'a> {
     variant: CardVariant,
     label: Option<&'a str>,
+    padding: Option<i8>,
 }
 
 impl<'a> Card<'a> {
@@ -45,12 +46,19 @@ impl<'a> Card<'a> {
         Self {
             variant,
             label: None,
+            padding: None,
         }
     }
 
     /// Set the name announced for an interactive card.
     pub fn label(mut self, label: &'a str) -> Self {
         self.label = Some(label);
+        self
+    }
+
+    /// Set the internal padding in points.
+    pub fn padding(mut self, points: i8) -> Self {
+        self.padding = Some(points.max(0));
         self
     }
 
@@ -95,7 +103,7 @@ impl<'a> Card<'a> {
                 .stroke(border)
                 .corner_radius(16)
                 .shadow(shadow)
-                .inner_margin(Margin::same(18));
+                .inner_margin(Margin::same(self.padding.unwrap_or(18)));
             frame
                 .show(ui, |ui| {
                     ui.visuals_mut().extreme_bg_color = c.surface_secondary;

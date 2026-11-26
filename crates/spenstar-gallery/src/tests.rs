@@ -32,6 +32,42 @@ fn each_gallery_page_paints_content_at_desktop_and_compact_widths() {
                 ],
             ),
             (
+                Page::Crm,
+                [
+                    "Deal velocity, forecast, and follow-ups",
+                    "$8.4M",
+                    "Created vs closed",
+                    "Pipeline funnel",
+                ],
+            ),
+            (
+                Page::Portfolio,
+                [
+                    "Welcome back, Alex",
+                    "$5,427.48",
+                    "Portfolio value",
+                    "Recent activity",
+                ],
+            ),
+            (
+                Page::Analytics,
+                [
+                    "Audience and acquisition across your website",
+                    "Sessions over time",
+                    "Traffic by device",
+                    "Top channels",
+                ],
+            ),
+            (
+                Page::Data,
+                [
+                    "Project records",
+                    "10,000 rows",
+                    "Project details",
+                    "Source & changes",
+                ],
+            ),
+            (
                 Page::Tracker,
                 [
                     "Track work across your team.",
@@ -255,4 +291,85 @@ fn appearance_opens_dropdown_and_closes_optional_inspector() {
     assert!(find(&closed, "Close").is_none());
     assert!(!gallery.inspector_open);
     assert_eq!(gallery.shell.sidebar.variant, SidebarVariant::Floating);
+}
+
+#[test]
+fn gallery_command_palette_search_navigates_and_applies_actions() {
+    use eframe::egui::{Event, Key, Modifiers, PointerButton, Pos2};
+
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(&ctx);
+    let draw = |gallery: &mut Gallery, events| {
+        let mut output = ctx.run_ui(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1280., 820.))),
+                events,
+                ..Default::default()
+            },
+            |ui| gallery.show(ui),
+        );
+        output.textures_delta.clear();
+        output
+    };
+    let frame = draw(&mut gallery, vec![]);
+    let button = frame
+        .platform_output
+        .accesskit_update
+        .as_ref()
+        .and_then(|update| {
+            update.nodes.iter().find_map(|(_, node)| {
+                if node
+                    .label()
+                    .is_some_and(|label| label.starts_with("Search pages and actions"))
+                {
+                    node.bounds()
+                } else {
+                    None
+                }
+            })
+        });
+    let Some(button) = button else {
+        panic!("navbar command trigger missing")
+    };
+    let at = pos2(
+        ((button.x0 + button.x1) / 2.) as f32,
+        ((button.y0 + button.y1) / 2.) as f32,
+    );
+    draw(&mut gallery, vec![Event::PointerMoved(at)]);
+    for pressed in [true, false] {
+        draw(
+            &mut gallery,
+            vec![Event::PointerButton {
+                pos: at,
+                pressed,
+                button: PointerButton::Primary,
+                modifiers: Modifiers::NONE,
+            }],
+        );
+    }
+    assert!(gallery.command.is_open());
+    let press = |key, modifiers| {
+        [true, false]
+            .into_iter()
+            .map(|pressed| Event::Key {
+                key,
+                physical_key: Some(key),
+                pressed,
+                repeat: false,
+                modifiers,
+            })
+            .collect()
+    };
+    draw(&mut gallery, vec![Event::Text("prtflo".to_owned())]);
+    draw(&mut gallery, press(Key::Enter, Modifiers::NONE));
+    assert_eq!(gallery.page, Page::Portfolio);
+    assert!(!gallery.command.is_open());
+    draw(&mut gallery, vec![]);
+    draw(&mut gallery, press(Key::K, Modifiers::COMMAND));
+    assert!(gallery.command.is_open());
+    draw(&mut gallery, vec![Event::Text("light".to_owned())]);
+    draw(&mut gallery, press(Key::Enter, Modifiers::NONE));
+    assert_eq!(gallery.theme.mode, Mode::Light);
+    assert!(!gallery.command.is_open());
 }
