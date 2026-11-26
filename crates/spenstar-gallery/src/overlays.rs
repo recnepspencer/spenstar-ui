@@ -26,7 +26,7 @@ pub(super) enum OverlayScene {
     Alert,
     Drawer,
     Dropdown,
-    WorkbenchDrawer,
+    WorkbenchChanges,
 }
 
 #[derive(Default)]

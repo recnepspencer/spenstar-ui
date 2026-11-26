@@ -10,19 +10,7 @@ pub(super) fn trigger(
     leading: Option<Icon>,
     trailing: impl FnOnce(&mut Ui),
 ) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 28.), Sense::click());
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
-    if response.hovered() {
-        ui.painter().rect_filled(rect, 5, p.active);
-    }
-    if response.has_focus() {
-        ui.painter().rect_stroke(
-            rect,
-            5,
-            Stroke::new(1., Theme::current(ui.ctx()).colors.accent.ring),
-            egui::StrokeKind::Inside,
-        );
-    }
+    let (rect, response) = surface(ui, p, label, true);
     split(ui, rect.shrink2(vec2(4., 0.)), trailing, |ui| {
         if let Some(icon) = leading {
             icon.show(ui, 14., p.muted);
@@ -34,6 +22,37 @@ pub(super) fn trigger(
         );
     });
     response
+}
+
+pub(super) fn surface(
+    ui: &mut Ui,
+    p: WorkbenchPalette,
+    label: &str,
+    interactive: bool,
+) -> (Rect, egui::Response) {
+    let (rect, response) = ui.allocate_exact_size(
+        vec2(ui.available_width(), 28.),
+        if interactive {
+            Sense::click()
+        } else {
+            Sense::hover()
+        },
+    );
+    if interactive {
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
+    }
+    if interactive && response.hovered() {
+        ui.painter().rect_filled(rect, 5, p.active);
+    }
+    if response.has_focus() {
+        ui.painter().rect_stroke(
+            rect,
+            5,
+            Stroke::new(1., Theme::current(ui.ctx()).colors.accent.ring),
+            egui::StrokeKind::Inside,
+        );
+    }
+    (rect, response)
 }
 
 pub(super) fn split(

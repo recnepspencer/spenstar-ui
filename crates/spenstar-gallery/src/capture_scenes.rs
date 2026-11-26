@@ -67,7 +67,7 @@ pub(super) const WAVE4_SCENES: &[Scene] = &[
         "03-agent-workbench-drawer-dark.png",
         Page::Workbench,
         Dark,
-        OverlayScene::WorkbenchDrawer,
+        OverlayScene::WorkbenchChanges,
     ),
     Scene::w4(
         "04-overlays-dark.png",

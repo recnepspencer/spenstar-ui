@@ -188,7 +188,7 @@ impl Capture {
         gallery.overlays.capture(ctx, scene.overlay);
         gallery
             .workbench
-            .capture_drawer(scene.overlay == OverlayScene::WorkbenchDrawer);
+            .capture_changes(scene.overlay == OverlayScene::WorkbenchChanges);
         self.state = State::Settle {
             since: Instant::now(),
             frames: 0,

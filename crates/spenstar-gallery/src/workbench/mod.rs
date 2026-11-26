@@ -1,3 +1,4 @@
+mod changes;
 mod conversation;
 mod inspector;
 mod rail;
@@ -30,6 +31,7 @@ pub(super) struct Workbench {
     draft: String,
     model: &'static str,
     git: inspector::Git,
+    changes: changes::Changes,
 }
 
 impl Default for Workbench {
@@ -45,6 +47,7 @@ impl Default for Workbench {
             draft: String::new(),
             model: "6.2 Sol Ultrafast",
             git: inspector::Git::default(),
+            changes: changes::Changes::default(),
         }
     }
 }
@@ -57,8 +60,8 @@ pub(super) struct WorkbenchEvents {
 }
 
 impl Workbench {
-    pub(super) fn capture_drawer(&mut self, open: bool) {
-        self.git.changes = open;
+    pub(super) fn capture_changes(&mut self, open: bool) {
+        self.changes.capture(open);
     }
 
     pub(super) fn show(&mut self, ui: &mut Ui) -> WorkbenchEvents {
@@ -85,10 +88,13 @@ impl Workbench {
             let rail = Rect::from_min_max(rect.min, pos2(rect.left() + rail_width, rect.bottom()));
             self.rail(&mut pane(ui, "rail", rail), palette, &mut events);
         }
-        let center = Rect::from_min_max(
-            pos2(rect.left() + rail_width, rect.top()),
-            pos2(rect.right() - inspector_width, rect.bottom()),
-        );
+        let workspace = Rect::from_min_max(pos2(rect.left() + rail_width, rect.top()), rect.max);
+        let (work, changes) = self.changes.split(ui, workspace, inspector_width, palette);
+        let center_right = work.right() - inspector_width;
+        let center_bottom = changes
+            .filter(|dock| dock.top() > work.top())
+            .map_or(work.bottom(), |dock| dock.top());
+        let center = Rect::from_min_max(work.min, pos2(center_right, center_bottom));
         self.conversation(
             &mut pane(ui, "conversation", center),
             palette,
@@ -96,9 +102,15 @@ impl Workbench {
             &mut events,
         );
         if inspector_width > 0. {
-            let inspector = Rect::from_min_max(pos2(center.right(), rect.top()), rect.max);
-            self.git
-                .inspector(&mut pane(ui, "inspector", inspector), palette);
+            let inspector = Rect::from_min_max(pos2(center_right, work.top()), work.max);
+            self.git.inspector(
+                &mut pane(ui, "inspector", inspector),
+                palette,
+                &mut self.changes.open,
+            );
+        }
+        if let Some(dock) = changes {
+            self.changes.show(&mut pane(ui, "changes", dock), palette);
         }
         self.git.overlays(ui.ctx());
         self.threads.rename(ui.ctx());

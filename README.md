@@ -10,7 +10,7 @@ Use Rust 1.95 or later.
 cargo run -p spenstar-gallery
 ```
 
-Open **Agent Workbench** for a three-pane coding workspace with project threads, a conversation stream, a live composer, and a Git and lineage inspector. **Overlays & Feedback** demonstrates dialogs, menus, notifications, and loading states. Use **Ctrl+K** (**⌘K** on macOS) to jump to any gallery page and **Ctrl+B** (**⌘B** on macOS) to cycle gallery navigation.
+Open **Agent Workbench** for a three-pane coding workspace with project threads, a conversation stream, a live composer, and a Git and lineage inspector. **Changes vs origin/main** toggles a resizable dock with Diff and Files tabs. **Overlays & Feedback** demonstrates dialogs, menus, notifications, and loading states. Use **Ctrl+K** (**⌘K** on macOS) to jump to any gallery page and **Ctrl+B** (**⌘B** on macOS) to cycle gallery navigation.
 
 Capture the 12 Wave 4 scenes. The gallery renders at 2× and exports 1280 × 820 PNGs, then closes. Use `--wave3` for the Wave 3 set or `--legacy` for the earlier scenes and Wave 3 at 2560 × 1640.
 
