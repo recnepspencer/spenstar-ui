@@ -328,10 +328,10 @@ fn brand(ui: &mut Ui, compact: bool) {
     let c = Theme::current(ui.ctx()).colors;
     const LOGO: SvgIcon =
         SvgIcon::from_static("spenstar-mark", include_str!("../assets/spenstar-mark.svg"));
-    let size = if compact { 30. } else { 32. };
+    let size = if compact { 28. } else { 30. };
     let mark = |ui: &mut Ui| {
         let (rect, _) = ui.allocate_exact_size(vec2(size, size), Sense::hover());
-        let _ = LOGO.paint(ui, rect, egui::Color32::WHITE);
+        let _ = LOGO.paint(ui, rect, c.text_primary);
     };
     ui.add_space(8.);
     if compact {
