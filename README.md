@@ -10,13 +10,12 @@ Use Rust 1.95 or later.
 cargo run -p spenstar-gallery
 ```
 
-Explore the Dashboard, Orders, Tracker, Inbox, Settings, and Dispatch Workspace templates, or browse buttons, 109 Lucide icons, design tokens, forms, and pickers. The **Forms & Controls** page lets you change the gallery’s accent with a swatch. Open **Appearance** in the page header to try the sidebar styles, Light and Dark modes, and accent presets. Use **Ctrl+B** (**⌘B** on macOS) to cycle through expanded, rail, and hidden navigation.
+Explore Dashboard, Orders, CRM Pipeline, Portfolio, Analytics, and the other templates. **Data & Charts** includes a 10,000-row table and examples of navigation and structured text. Open the command palette with **Ctrl+K** (**⌘K** on macOS) or the navbar search button to jump to any page and change appearance. Use **Ctrl+B** (**⌘B** on macOS) to cycle through expanded, rail, and hidden navigation.
 
-
-Use the gallery’s capture mode to write 2× PNGs of the templates, the optional inspector, and the component pages. The gallery closes when the capture is complete.
+Capture the 12 Wave 3 gallery scenes at 2× scale (2560 × 1640 pixels for a 1280 × 820-point viewport). Omit `--wave3` to also capture the earlier gallery scenes. The gallery closes on completion.
 
 ```sh
-cargo run -p spenstar-gallery -- --capture-dir /tmp/spenstar-shots
+cargo run -p spenstar-gallery -- --capture-dir /tmp/spenstar-shots --wave3
 ```
 
 ## Use the library
@@ -68,6 +67,14 @@ fn contact(ui: &mut egui::Ui, email: &mut String) {
 `Select` and `MultiSelect` store option values, while `ComboBox` edits a display string and reports the chosen value or custom text. Run application keyboard shortcuts through `ShortcutGuard` after rendering the controls so focused editors and open popovers receive the keys first.
 
 `CalendarDate` uses the proleptic Gregorian calendar and Monday-based weekdays. Pickers default to today in UTC. Set `CalendarOptions::today` to the application’s local date when the current day depends on a time zone.
+
+## Data display
+
+`display` includes semantic badges and chips, avatars, KPI cards, description lists, and code and diff views. Native charts live in `charts`. Cartesian series skip non-finite samples, leaving gaps in lines and areas. Donuts use positive contributions and funnels treat invalid counts as zero.
+
+`table::DataTable` renders only the rows in its scroll viewport. Retain a `TableState` per table, supply stable unique row IDs, and increment the `TableRows` revision when rows or filter inputs change. Selection applies across the current filtered result, including pages outside the viewport. The table reports bulk actions for the app to apply to the selected IDs.
+
+`CommandPalette::show` handles the global shortcut through `ShortcutGuard` and returns the activated command ID. Call it after page controls. A button can open it explicitly with `CommandPalette::open`.
 
 ## License
 

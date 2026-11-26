@@ -4,9 +4,12 @@ mod appearance;
 mod buttons;
 mod capture;
 mod dashboard;
+mod data;
 mod forms;
+mod gallery_command;
 mod icons;
 mod inbox;
+mod insights;
 mod invite;
 mod navigation;
 mod orders;
@@ -20,14 +23,11 @@ mod tracker;
 mod widgets;
 mod workspace;
 
-use eframe::egui::{
-    self, Align, Context, Id, Key, KeyboardShortcut, Modifiers, ScrollArea, Sense, Ui, vec2,
-};
+use eframe::egui::{self, Context, ScrollArea, Sense, Ui, vec2};
 use spenstar_ui::{
-    Theme,
-    button::{Button, CloseButton, Variant},
+    CommandPalette, Theme,
+    button::{Button, Variant},
     icon::{Icon, SvgIcon},
-    input::ShortcutGuard,
     layout::{AppShell, Inspector, PageHeader, SearchTrigger, SidebarEvent, SidebarPage, Toolbar},
     theme::{Accent, Mode},
     typography::Type,
@@ -41,8 +41,11 @@ struct Gallery {
     page: Page,
     inspector_open: bool,
     appearance: appearance::Appearance,
-    command_open: bool,
-    command_query: String,
+    command: CommandPalette,
+    crm: insights::Crm,
+    portfolio: insights::Portfolio,
+    analytics: insights::Analytics,
+    data: data::DataDemo,
     buttons: buttons::Demo,
     icons: icons::Browser,
     dashboard: dashboard::Dashboard,
@@ -68,8 +71,11 @@ impl Gallery {
             page: Page::Overview,
             inspector_open: false,
             appearance: appearance::Appearance::default(),
-            command_open: false,
-            command_query: String::new(),
+            command: CommandPalette::new("spenstar-gallery/commands"),
+            crm: Default::default(),
+            portfolio: Default::default(),
+            analytics: Default::default(),
+            data: Default::default(),
             buttons: buttons::Demo::default(),
             icons: icons::Browser::default(),
             dashboard: dashboard::Dashboard::default(),
@@ -101,6 +107,7 @@ impl Gallery {
             Inspector::new(280., &mut settings).heading("Appearance", &mut self.inspector_open)
         });
         let mut selected_shipment = None;
+        let mut open_palette = false;
         let capture_picker = self
             .capture
             .as_ref()
@@ -136,6 +143,10 @@ impl Gallery {
                                 selected_shipment = self.dashboard.show(ui, &self.shipments)
                             }
                             Page::Inbox => {}
+                            Page::Crm => self.crm.show(ui),
+                            Page::Portfolio => self.portfolio.show(ui),
+                            Page::Analytics => self.analytics.show(ui),
+                            Page::Data => open_palette = self.data.show(ui),
                             Page::Orders => self.orders.show(ui),
                             Page::Tracker => self.tracker.show(ui),
                             Page::Settings => self.settings.show(ui),
@@ -215,55 +226,8 @@ impl Gallery {
         {
             ui.ctx().request_repaint();
         }
-        let open_command = header.open_command
-            || ShortcutGuard::new(ui).consume(&KeyboardShortcut::new(Modifiers::COMMAND, Key::K));
-        if open_command {
-            self.command_open = true;
-            self.command_query.clear();
-        }
-        if self.command_open {
-            self.command(ui.ctx(), open_command);
-        }
         self.invitations.show(ui, header.invite);
-    }
-
-    fn command(&mut self, ctx: &Context, open: bool) {
-        let mut destination = None;
-        let mut close = false;
-        let colors = self.theme.colors;
-        let modal =
-            egui::Modal::new(Id::unique("spenstar-gallery/jump")).backdrop_color(colors.scrim);
-        let out = modal.show(ctx, |ui| {
-            ui.set_width(340.);
-            ui.horizontal(|ui| {
-                ui.label(Type::H3.text("Quick jump"));
-                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                    close = CloseButton::show(ui).clicked();
-                });
-            });
-            let input = widgets::search(ui, &mut self.command_query, "Find a page…");
-            if open || !ctx.egui_wants_keyboard_input() {
-                input.request_focus();
-            }
-            let query = self.command_query.to_lowercase();
-            for page in Page::ALL {
-                if page.name().to_lowercase().contains(&query)
-                    && Button::new(page.name())
-                        .variant(Variant::Ghost)
-                        .show(ui)
-                        .clicked()
-                {
-                    destination = Some(page);
-                }
-            }
-        });
-        if let Some(destination) = destination {
-            self.page = destination;
-            ctx.request_repaint();
-        }
-        if close || destination.is_some() || out.should_close() {
-            self.command_open = false;
-        }
+        self.show_command(ui, open_palette || header.open_command);
     }
 }
 
@@ -285,7 +249,7 @@ fn navbar(ui: &mut Ui, page: Page, mode: Mode) -> HeaderEvents {
         "Ctrl K"
     };
     let header = PageHeader::new(page.title()).search(SearchTrigger {
-        label: "Quick jump",
+        label: "Search pages and actions",
         shortcut: Some(hint),
     });
     events.open_command = header

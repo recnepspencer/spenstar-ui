@@ -1,14 +1,7 @@
 //! Wrapping tags and inline tag entry.
 use egui::{Frame, Key, Margin, Modifiers, Response, Stroke, TextEdit, Ui};
 
-use crate::{
-    Theme,
-    controls::Tone,
-    form::icon_button,
-    icon::{Icon, IconSource},
-    theme::luminance,
-    typography::Type,
-};
+use crate::{Theme, controls::Tone, display::Badge, icon::IconSource};
 
 /// Display information for a tag.
 #[derive(Clone, Debug)]
@@ -62,42 +55,14 @@ impl TagGroup {
 }
 
 pub(crate) fn chip(ui: &mut Ui, tag: &Tag<'_>, width: f32) -> bool {
-    let colors = Theme::current(ui.ctx()).colors;
-    let tone = tag.tone.palette(colors);
-    let (ink_luminance, fill_luminance) = (luminance(tone.ring), luminance(tone.soft_hover));
-    let contrast =
-        (ink_luminance.max(fill_luminance) + 0.05) / (ink_luminance.min(fill_luminance) + 0.05);
-    let ink = if tag.tone == Tone::Neutral || contrast < 4.5 {
-        colors.text_primary
-    } else {
-        tone.ring
+    let badge = Badge {
+        tone: tag.tone,
+        icon: tag.icon.clone(),
+        ..Badge::new(tag.label)
     };
-    Frame::new()
-        .fill(tone.soft_hover)
-        .corner_radius(12)
-        .inner_margin(Margin::symmetric(6, 1))
-        .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 3.;
-                if let Some(icon) = &tag.icon {
-                    icon.show(ui, 12., ink);
-                }
-                let decorations = 12.
-                    + if tag.removable { 25. } else { 0. }
-                    + if tag.icon.is_some() { 15. } else { 0. };
-                let text_width = ui
-                    .painter()
-                    .layout_no_wrap(tag.label.to_owned(), Type::Badge.font(), ink)
-                    .size()
-                    .x;
-                let label = egui::Label::new(Type::Badge.text(tag.label).color(ink)).truncate();
-                ui.add_sized([text_width.min((width - decorations).max(10.)), 20.], label);
-                tag.removable
-                    && icon_button(ui, Icon::X, &format!("Remove {}", tag.label)).clicked()
-            })
-            .inner
-        })
-        .inner
+    badge
+        .content(ui, None, false, false, tag.removable, width)
+        .removed
 }
 
 /// An inline editor with wrapping chips, delimiter handling, and an optional tag cap.

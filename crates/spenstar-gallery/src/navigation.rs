@@ -17,10 +17,14 @@ pub(super) enum Page {
     Tokens,
     Forms,
     Pickers,
+    Crm,
+    Portfolio,
+    Analytics,
+    Data,
 }
 
 impl Page {
-    pub(super) const ALL: [Self; 11] = [
+    pub(super) const ALL: [Self; 15] = [
         Self::Overview,
         Self::Orders,
         Self::Tracker,
@@ -32,6 +36,10 @@ impl Page {
         Self::Tokens,
         Self::Forms,
         Self::Pickers,
+        Self::Crm,
+        Self::Portfolio,
+        Self::Analytics,
+        Self::Data,
     ];
 
     pub(super) fn id(self) -> &'static str {
@@ -47,6 +55,10 @@ impl Page {
             Self::Tokens => "tokens",
             Self::Forms => "forms",
             Self::Pickers => "pickers",
+            Self::Crm => "crm",
+            Self::Portfolio => "portfolio",
+            Self::Analytics => "analytics",
+            Self::Data => "data",
         }
     }
 
@@ -63,15 +75,10 @@ impl Page {
             Self::Tokens => "Tokens & Typography",
             Self::Forms => "Forms & Controls",
             Self::Pickers => "Pickers & Dates",
-        }
-    }
-
-    pub(super) fn name(self) -> &'static str {
-        match self {
-            Self::Overview => "Dashboard",
-            Self::Settings => "Settings",
-            Self::Workspace => "Workspace",
-            _ => self.title(),
+            Self::Crm => "CRM Pipeline",
+            Self::Portfolio => "Portfolio",
+            Self::Analytics => "Analytics",
+            Self::Data => "Data & Charts",
         }
     }
 }
@@ -82,6 +89,9 @@ pub(super) const NAVIGATION: &[MenuSection<'_>] = &[
         items: &[
             MenuItem::new("overview", "Dashboard", Icon::LayoutDashboard),
             MenuItem::new("orders", "Orders", Icon::ClipboardList),
+            MenuItem::new("crm", "CRM Pipeline", Icon::Kanban),
+            MenuItem::new("portfolio", "Portfolio", Icon::Layers),
+            MenuItem::new("analytics", "Analytics", Icon::LineChart),
             MenuItem::new("tracker", "Tracker", Icon::List),
             MenuItem::new("inbox", "Inbox", Icon::Mail),
             MenuItem::new("settings", "Settings", Icon::Settings),
@@ -96,6 +106,7 @@ pub(super) const NAVIGATION: &[MenuSection<'_>] = &[
             MenuItem::new("tokens", "Tokens & Typography", Icon::Palette),
             MenuItem::new("forms", "Forms & Controls", Icon::SlidersHorizontal),
             MenuItem::new("pickers", "Pickers & Dates", Icon::Calendar),
+            MenuItem::new("data", "Data & Charts", Icon::BarChart3),
         ],
     },
 ];

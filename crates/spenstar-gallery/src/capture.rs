@@ -24,11 +24,13 @@ const SETTLE: Duration = Duration::from_millis(350);
 const TICK: Duration = Duration::from_millis(40);
 const TIMEOUT: Duration = Duration::from_secs(10);
 
+#[derive(Clone, Copy)]
 struct Scene {
     filename: &'static str,
     page: Page,
     mode: Mode,
     inspector: bool,
+    command: bool,
 }
 
 impl Scene {
@@ -38,13 +40,14 @@ impl Scene {
             page,
             mode,
             inspector: false,
+            command: false,
         }
     }
 }
 
 use Mode::{Dark, Light};
 
-const SCENES: &[Scene] = &[
+const LEGACY_SCENES: &[Scene] = &[
     Scene::new("01-overview-dark.png", Page::Overview, Dark),
     Scene::new("02-overview-light.png", Page::Overview, Light),
     Scene {
@@ -69,6 +72,27 @@ const SCENES: &[Scene] = &[
     Scene::new("19-tracker-light.png", Page::Tracker, Light),
 ];
 
+const WAVE3_SCENES: &[Scene] = &[
+    Scene::new("01-dashboard-light.png", Page::Overview, Light),
+    Scene::new("02-dashboard-dark.png", Page::Overview, Dark),
+    Scene::new("03-crm-dark.png", Page::Crm, Dark),
+    Scene::new("04-crm-light.png", Page::Crm, Light),
+    Scene::new("05-portfolio-light.png", Page::Portfolio, Light),
+    Scene::new("06-portfolio-dark.png", Page::Portfolio, Dark),
+    Scene::new("07-analytics-light.png", Page::Analytics, Light),
+    Scene::new("08-analytics-dark.png", Page::Analytics, Dark),
+    Scene::new("09-data-charts-dark.png", Page::Data, Dark),
+    Scene::new("10-data-charts-light.png", Page::Data, Light),
+    Scene {
+        command: true,
+        ..Scene::new("11-command-palette-dark.png", Page::Analytics, Dark)
+    },
+    Scene {
+        command: true,
+        ..Scene::new("12-command-palette-light.png", Page::Analytics, Light)
+    },
+];
+
 type ResultSlot = Arc<Mutex<Option<Result<(), String>>>>;
 
 enum State {
@@ -87,6 +111,7 @@ enum State {
 pub(super) struct Capture {
     directory: PathBuf,
     scene: usize,
+    scenes: Vec<Scene>,
     state: State,
     result: ResultSlot,
 }
@@ -98,22 +123,27 @@ impl Capture {
             return Ok(None);
         };
         let Some(directory) = args.next().filter(|_| flag == "--capture-dir") else {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "usage: spenstar-gallery [--capture-dir <dir>]",
-            ));
+            return Err(usage());
+        };
+        let wave3_only = match args.next() {
+            None => false,
+            Some(flag) if flag == "--wave3" => true,
+            _ => return Err(usage()),
         };
         if args.next().is_some() || directory.is_empty() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "usage: spenstar-gallery [--capture-dir <dir>]",
-            ));
+            return Err(usage());
         }
+        let scenes = if wave3_only {
+            WAVE3_SCENES.to_vec()
+        } else {
+            [LEGACY_SCENES, WAVE3_SCENES].concat()
+        };
         let directory = PathBuf::from(directory);
         fs::create_dir_all(&directory)?;
         Ok(Some(Self {
             directory,
             scene: 0,
+            scenes,
             state: State::Configure,
             result: Arc::default(),
         }))
@@ -124,7 +154,7 @@ impl Capture {
     }
 
     pub(super) fn open_select(&self) -> bool {
-        SCENES
+        self.scenes
             .get(self.scene)
             .is_some_and(|scene| scene.page == Page::Pickers)
     }
@@ -133,12 +163,17 @@ impl Capture {
         if !matches!(self.state, State::Configure) {
             return;
         }
-        let scene = &SCENES[self.scene];
+        let scene = &self.scenes[self.scene];
         if self.scene == 0 && (ctx.pixels_per_point() - 2.).abs() > f32::EPSILON {
             ctx.set_pixels_per_point(2.);
             ctx.send_viewport_cmd(ViewportCommand::InnerSize(SIZE.into()));
         }
         gallery.page = scene.page;
+        if scene.command {
+            gallery.command.open();
+        } else {
+            gallery.command.close();
+        }
         gallery.inspector_open = scene.inspector;
         gallery.shell.sidebar = if scene.inspector {
             Sidebar {
@@ -167,7 +202,7 @@ impl Capture {
                 *frames += 1;
                 if *frames >= 5 && since.elapsed() >= SETTLE {
                     let (sender, result) = mpsc::channel();
-                    let filename = SCENES[self.scene].filename;
+                    let filename = self.scenes[self.scene].filename;
                     let path = self.directory.join(filename);
                     let ctx = ctx.clone();
                     let repaint = ctx.clone();
@@ -187,9 +222,9 @@ impl Capture {
             }
             State::Receive { since, result } => match result.try_recv() {
                 Ok(Ok(())) => {
-                    println!("Captured {}", SCENES[self.scene].filename);
+                    println!("Captured {}", self.scenes[self.scene].filename);
                     self.scene += 1;
-                    if self.scene == SCENES.len() {
+                    if self.scene == self.scenes.len() {
                         self.finish(ctx, Ok(()));
                     } else {
                         self.state = State::Configure;
@@ -204,7 +239,7 @@ impl Capture {
                         ctx,
                         Err(format!(
                             "timed out capturing {}",
-                            SCENES[self.scene].filename
+                            self.scenes[self.scene].filename
                         )),
                     );
                 }
@@ -224,6 +259,13 @@ impl Capture {
         self.state = State::Finished;
         ctx.send_viewport_cmd(ViewportCommand::Close);
     }
+}
+
+fn usage() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "usage: spenstar-gallery [--capture-dir <dir> [--wave3]]",
+    )
 }
 
 fn write_image(path: &Path, image: &ColorImage) -> Result<(), Box<dyn std::error::Error>> {

@@ -256,12 +256,21 @@ impl Default for DateRangePicker<'_> {
 
 impl DateRangePicker<'_> {
     /// Render a calendar popup. A range or preset selection closes it.
-    pub fn show(mut self, ui: &mut Ui, range: &mut Option<DateRange>) -> DateRangeResponse {
+    pub fn show(self, ui: &mut Ui, range: &mut Option<DateRange>) -> DateRangeResponse {
+        self.show_with_format(ui, range, |range| {
+            format!("{}  –  {}", range.start, range.end)
+        })
+    }
+
+    /// Render the picker with a caller-provided format for the selected range.
+    pub fn show_with_format(
+        mut self,
+        ui: &mut Ui,
+        range: &mut Option<DateRange>,
+        format: impl FnOnce(DateRange) -> String,
+    ) -> DateRangeResponse {
         let previous = *range;
-        let label = range.map_or_else(
-            || self.style.placeholder.to_owned(),
-            |range| format!("{}  –  {}", range.start, range.end),
-        );
+        let label = range.map_or_else(|| self.style.placeholder.to_owned(), format);
         self.style.disabled |= self.options.disabled;
         let (mut response, _) = Trigger::new(&self.style, &label, range.is_none())
             .indicator(Icon::Calendar)
