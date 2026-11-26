@@ -4,7 +4,7 @@ mod support;
 
 use spenstar_ui::{
     Theme,
-    controls::{Direction, RadioGroup, RadioItem, RadioVariant},
+    controls::{Direction, RadioGroup, RadioItem, RadioVariant, Switch, Tone},
     egui::{Color32, CornerRadius, FontFamily, Stroke, epaint::Shape},
     form::{FieldVariant, Size, TextField},
     layout::Card,
@@ -117,4 +117,29 @@ fn radio_cards_stack_and_fill_the_available_width() {
     assert_eq!(first.x1, second.x1);
     assert_eq!(first.x1 - first.x0, 350.);
     assert_eq!(second.y0 - first.y1, 12.);
+}
+
+#[test]
+fn active_colored_switches_paint_white_thumbs_in_both_modes() {
+    for mode in [Mode::Light, Mode::Dark] {
+        let mut harness = Harness::new(mode);
+        let (frame, _) = harness.draw(vec![], |ui| {
+            for tone in [Tone::Accent, Tone::Success, Tone::Warning, Tone::Danger] {
+                Switch {
+                    tone,
+                    ..Switch::new("Enabled")
+                }
+                .show(ui, &mut true);
+            }
+        });
+        let thumbs: Vec<_> = frame
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                Shape::Circle(circle) => Some(circle.fill),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(thumbs, [Color32::WHITE; 4]);
+    }
 }

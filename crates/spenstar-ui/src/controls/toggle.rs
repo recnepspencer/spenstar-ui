@@ -1,4 +1,4 @@
-use egui::{InnerResponse, Response, Role, Stroke, StrokeKind, Ui, WidgetInfo, vec2};
+use egui::{Color32, InnerResponse, Response, Role, Stroke, StrokeKind, Ui, WidgetInfo, vec2};
 
 use crate::{
     Theme,
@@ -246,10 +246,15 @@ impl<'a> Switch<'a> {
                 (track.left() + size.y / 2.)..=(track.right() - size.y / 2.),
                 t,
             );
+            let active_thumb = if self.tone == Tone::Neutral {
+                p.foreground
+            } else {
+                Color32::WHITE
+            };
             ui.painter().circle_filled(
                 egui::pos2(center, track.center().y),
                 size.y / 2. - 2.,
-                mix(c.surface, p.foreground, t),
+                mix(c.surface, active_thumb, t),
             );
             let r = choice.response;
             r.widget_info(|| WidgetInfo::selected(Role::Switch, r.enabled(), *value, self.label));
