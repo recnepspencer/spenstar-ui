@@ -3,6 +3,7 @@
 mod appearance;
 mod buttons;
 mod capture;
+mod capture_scenes;
 mod dashboard;
 mod data;
 mod forms;
@@ -13,6 +14,7 @@ mod insights;
 mod invite;
 mod navigation;
 mod orders;
+mod overlays;
 mod pickers;
 mod settings;
 mod shipments;
@@ -21,12 +23,14 @@ mod tests;
 mod tokens;
 mod tracker;
 mod widgets;
+mod workbench;
 mod workspace;
 
 use eframe::egui::{self, Context, ScrollArea, Sense, Ui, vec2};
 use spenstar_ui::{
     CommandPalette, Theme,
     button::{Button, Variant},
+    feedback::{ToastQueue, Tone},
     icon::{Icon, SvgIcon},
     layout::{AppShell, Inspector, PageHeader, SearchTrigger, SidebarEvent, SidebarPage, Toolbar},
     theme::{Accent, Mode},
@@ -59,6 +63,8 @@ struct Gallery {
     forms: forms::Demo,
     pickers: pickers::Demo,
     capture: Option<capture::Capture>,
+    overlays: overlays::Showcase,
+    workbench: workbench::Workbench,
 }
 
 impl Gallery {
@@ -89,10 +95,31 @@ impl Gallery {
             forms: forms::Demo::default(),
             pickers: pickers::Demo::default(),
             capture: None,
+            overlays: Default::default(),
+            workbench: Default::default(),
         }
     }
 
     fn show(&mut self, ui: &mut Ui) {
+        if self.page == Page::Workbench {
+            self.show_workbench(ui);
+        } else {
+            self.show_gallery(ui);
+        }
+        if ui.ctx().output(|output| {
+            output
+                .commands
+                .iter()
+                .any(|command| matches!(command, egui::OutputCommand::CopyText(_)))
+        }) {
+            widgets::notify(ui.ctx(), "Copied to clipboard", Tone::Success);
+        }
+        if !ToastQueue::show_context(ui.ctx()).is_empty() {
+            widgets::notify(ui.ctx(), "Retry requested", Tone::Accent);
+        }
+    }
+
+    fn show_gallery(&mut self, ui: &mut Ui) {
         let page = self.page;
         let theme = self.theme;
         let mut requested_theme = theme;
@@ -142,7 +169,8 @@ impl Gallery {
                             Page::Overview => {
                                 selected_shipment = self.dashboard.show(ui, &self.shipments)
                             }
-                            Page::Inbox => {}
+                            Page::Inbox | Page::Workbench => {}
+                            Page::Overlays => self.overlays.show(ui),
                             Page::Crm => self.crm.show(ui),
                             Page::Portfolio => self.portfolio.show(ui),
                             Page::Analytics => self.analytics.show(ui),
@@ -207,6 +235,7 @@ impl Gallery {
             Some(dashboard::RecordAction::Remove(index)) => {
                 self.shipments.remove(index);
                 self.workspace.removed(index);
+                widgets::notify(ui.ctx(), "Shipment removed", Tone::Success);
             }
             None => {}
         }
@@ -316,8 +345,8 @@ fn brand(ui: &mut Ui, compact: bool) {
 
 impl eframe::App for Gallery {
     fn raw_input_hook(&mut self, _ctx: &Context, input: &mut egui::RawInput) {
-        if self.capture.is_some() {
-            input.events.clear();
+        if let Some(capture) = &self.capture {
+            capture.input(input);
         }
     }
 

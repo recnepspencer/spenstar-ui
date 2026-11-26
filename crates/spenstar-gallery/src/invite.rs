@@ -76,6 +76,11 @@ impl Invitations {
             let email = self.email.trim().to_owned();
             self.notice = Some(format!("Demo invitation pending for {email}"));
             self.pending.push(email);
+            crate::widgets::notify(
+                ui.ctx(),
+                "Invitation added",
+                spenstar_ui::feedback::Tone::Success,
+            );
         }
         if close || modal.should_close() {
             self.open = false;

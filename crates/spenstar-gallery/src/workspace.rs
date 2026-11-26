@@ -161,6 +161,11 @@ impl Workspace {
                 }
             }
             self.draft = None;
+            crate::widgets::notify(
+                ui.ctx(),
+                "Shipment saved",
+                spenstar_ui::feedback::Tone::Success,
+            );
         } else if discard {
             self.draft = None;
         }

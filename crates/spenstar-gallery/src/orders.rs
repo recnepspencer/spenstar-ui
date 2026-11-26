@@ -311,9 +311,21 @@ impl Orders {
                         self.rows.iter_mut().find(|current| current.id == order.id)
                     {
                         *current = order.clone();
+                        crate::widgets::notify(
+                            ui.ctx(),
+                            "Order saved",
+                            spenstar_ui::feedback::Tone::Success,
+                        );
                     }
                 }
-                Action::Remove => self.rows.retain(|current| current.id != order.id),
+                Action::Remove => {
+                    self.rows.retain(|current| current.id != order.id);
+                    crate::widgets::notify(
+                        ui.ctx(),
+                        "Order removed",
+                        spenstar_ui::feedback::Tone::Success,
+                    );
+                }
                 Action::View => {}
             }
         }

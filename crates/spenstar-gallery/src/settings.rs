@@ -113,6 +113,11 @@ impl Settings {
                 {
                     self.saved = self.draft.clone();
                     self.saved_notice = true;
+                    crate::widgets::notify(
+                        ui.ctx(),
+                        "Workspace settings saved",
+                        spenstar_ui::feedback::Tone::Success,
+                    );
                 }
                 if Button::new("Reset")
                     .variant(Variant::Ghost)

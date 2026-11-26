@@ -104,8 +104,22 @@ impl Dashboard {
         );
         if download_requested {
             self.notice = Some(match self.export(shipments) {
-                Ok(path) => format!("Saved {}", path.display()),
-                Err(err) => format!("Could not download records: {err}"),
+                Ok(path) => {
+                    crate::widgets::notify(
+                        ui.ctx(),
+                        "Shipment records saved",
+                        spenstar_ui::feedback::Tone::Success,
+                    );
+                    format!("Saved {}", path.display())
+                }
+                Err(err) => {
+                    crate::widgets::notify(
+                        ui.ctx(),
+                        "Download failed",
+                        spenstar_ui::feedback::Tone::Danger,
+                    );
+                    format!("Could not download records: {err}")
+                }
             });
         }
         if let Some(notice) = &self.notice {

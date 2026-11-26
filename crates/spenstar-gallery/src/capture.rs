@@ -9,89 +9,57 @@ use std::{
     time::{Duration, Instant},
 };
 
-use eframe::egui::{ColorImage, Context, ScreenshotCallback, ViewportCommand};
+use eframe::egui::{
+    ColorImage, Context, Event, Key, Modifiers, RawInput, ScreenshotCallback, ViewportCommand,
+};
 use spenstar_ui::{
     Theme,
     layout::{CollapseMode, Sidebar, SidebarVariant},
     theme::{Accent, Mode},
 };
 
-use crate::{Gallery, Page};
+use crate::{Gallery, Page, overlays::OverlayScene};
 
 pub(super) const SIZE: [f32; 2] = [1280., 820.];
 const PIXELS: [usize; 2] = [2560, 1640];
-const SETTLE: Duration = Duration::from_millis(350);
+const SETTLE: Duration = Duration::from_millis(580);
 const TICK: Duration = Duration::from_millis(40);
 const TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Copy)]
-struct Scene {
-    filename: &'static str,
-    page: Page,
-    mode: Mode,
-    inspector: bool,
-    command: bool,
+pub(super) struct Scene {
+    pub(super) filename: &'static str,
+    pub(super) page: Page,
+    pub(super) mode: Mode,
+    pub(super) inspector: bool,
+    pub(super) command: bool,
+    pub(super) overlay: OverlayScene,
 }
 
 impl Scene {
-    const fn new(filename: &'static str, page: Page, mode: Mode) -> Self {
+    pub(super) const fn w4(
+        filename: &'static str,
+        page: Page,
+        mode: Mode,
+        overlay: OverlayScene,
+    ) -> Self {
+        Self {
+            overlay,
+            ..Self::new(filename, page, mode)
+        }
+    }
+
+    pub(super) const fn new(filename: &'static str, page: Page, mode: Mode) -> Self {
         Self {
             filename,
             page,
             mode,
             inspector: false,
             command: false,
+            overlay: OverlayScene::None,
         }
     }
 }
-
-use Mode::{Dark, Light};
-
-const LEGACY_SCENES: &[Scene] = &[
-    Scene::new("01-overview-dark.png", Page::Overview, Dark),
-    Scene::new("02-overview-light.png", Page::Overview, Light),
-    Scene {
-        inspector: true,
-        ..Scene::new("03-overview-inspector-dark.png", Page::Overview, Dark)
-    },
-    Scene::new("04-buttons-dark.png", Page::Buttons, Dark),
-    Scene::new("05-buttons-light.png", Page::Buttons, Light),
-    Scene::new("06-icons-dark.png", Page::Icons, Dark),
-    Scene::new("07-icons-light.png", Page::Icons, Light),
-    Scene::new("08-tokens-dark.png", Page::Tokens, Dark),
-    Scene::new("09-forms-dark.png", Page::Forms, Dark),
-    Scene::new("10-forms-light.png", Page::Forms, Light),
-    Scene::new("11-pickers-dark.png", Page::Pickers, Dark),
-    Scene::new("12-pickers-light.png", Page::Pickers, Light),
-    Scene::new("13-inbox-light.png", Page::Inbox, Light),
-    Scene::new("14-inbox-dark.png", Page::Inbox, Dark),
-    Scene::new("15-settings-dark.png", Page::Settings, Dark),
-    Scene::new("16-settings-light.png", Page::Settings, Light),
-    Scene::new("17-workspace-dark.png", Page::Workspace, Dark),
-    Scene::new("18-orders-light.png", Page::Orders, Light),
-    Scene::new("19-tracker-light.png", Page::Tracker, Light),
-];
-
-const WAVE3_SCENES: &[Scene] = &[
-    Scene::new("01-dashboard-light.png", Page::Overview, Light),
-    Scene::new("02-dashboard-dark.png", Page::Overview, Dark),
-    Scene::new("03-crm-dark.png", Page::Crm, Dark),
-    Scene::new("04-crm-light.png", Page::Crm, Light),
-    Scene::new("05-portfolio-light.png", Page::Portfolio, Light),
-    Scene::new("06-portfolio-dark.png", Page::Portfolio, Dark),
-    Scene::new("07-analytics-light.png", Page::Analytics, Light),
-    Scene::new("08-analytics-dark.png", Page::Analytics, Dark),
-    Scene::new("09-data-charts-dark.png", Page::Data, Dark),
-    Scene::new("10-data-charts-light.png", Page::Data, Light),
-    Scene {
-        command: true,
-        ..Scene::new("11-command-palette-dark.png", Page::Analytics, Dark)
-    },
-    Scene {
-        command: true,
-        ..Scene::new("12-command-palette-light.png", Page::Analytics, Light)
-    },
-];
 
 type ResultSlot = Arc<Mutex<Option<Result<(), String>>>>;
 
@@ -112,6 +80,7 @@ pub(super) struct Capture {
     directory: PathBuf,
     scene: usize,
     scenes: Vec<Scene>,
+    export_size: [usize; 2],
     state: State,
     result: ResultSlot,
 }
@@ -125,25 +94,23 @@ impl Capture {
         let Some(directory) = args.next().filter(|_| flag == "--capture-dir") else {
             return Err(usage());
         };
-        let wave3_only = match args.next() {
-            None => false,
-            Some(flag) if flag == "--wave3" => true,
+        use crate::capture_scenes::{LEGACY_SCENES, WAVE3_SCENES, WAVE4_SCENES};
+        let (scenes, export_size) = match args.next() {
+            None => (WAVE4_SCENES.to_vec(), [1280, 820]),
+            Some(flag) if flag == "--wave3" => (WAVE3_SCENES.to_vec(), PIXELS),
+            Some(flag) if flag == "--legacy" => ([LEGACY_SCENES, WAVE3_SCENES].concat(), PIXELS),
             _ => return Err(usage()),
         };
         if args.next().is_some() || directory.is_empty() {
             return Err(usage());
         }
-        let scenes = if wave3_only {
-            WAVE3_SCENES.to_vec()
-        } else {
-            [LEGACY_SCENES, WAVE3_SCENES].concat()
-        };
         let directory = PathBuf::from(directory);
         fs::create_dir_all(&directory)?;
         Ok(Some(Self {
             directory,
             scene: 0,
             scenes,
+            export_size,
             state: State::Configure,
             result: Arc::default(),
         }))
@@ -157,6 +124,33 @@ impl Capture {
         self.scenes
             .get(self.scene)
             .is_some_and(|scene| scene.page == Page::Pickers)
+    }
+
+    pub(super) fn input(&self, input: &mut RawInput) {
+        input.events.clear();
+        if self
+            .scenes
+            .get(self.scene)
+            .is_some_and(|scene| scene.overlay == OverlayScene::Dropdown)
+            && let State::Settle { frames, .. } = self.state
+        {
+            let event = match frames {
+                3 => Some((Key::ArrowDown, true)),
+                4 => Some((Key::ArrowDown, false)),
+                5 => Some((Key::ArrowRight, true)),
+                6 => Some((Key::ArrowRight, false)),
+                _ => None,
+            };
+            if let Some((key, pressed)) = event {
+                input.events.push(Event::Key {
+                    key,
+                    physical_key: Some(key),
+                    pressed,
+                    repeat: false,
+                    modifiers: Modifiers::NONE,
+                });
+            }
+        }
     }
 
     pub(super) fn prepare(&mut self, gallery: &mut Gallery, ctx: &Context) {
@@ -190,6 +184,11 @@ impl Capture {
         };
         gallery.theme = Theme::new(scene.mode, Accent::Blue);
         gallery.theme.apply(ctx);
+        spenstar_ui::feedback::ToastQueue::clear_context(ctx);
+        gallery.overlays.capture(ctx, scene.overlay);
+        gallery
+            .workbench
+            .capture_drawer(scene.overlay == OverlayScene::WorkbenchDrawer);
         self.state = State::Settle {
             since: Instant::now(),
             frames: 0,
@@ -200,15 +199,16 @@ impl Capture {
         match &mut self.state {
             State::Settle { since, frames } => {
                 *frames += 1;
-                if *frames >= 5 && since.elapsed() >= SETTLE {
+                if *frames >= 12 && since.elapsed() >= SETTLE {
                     let (sender, result) = mpsc::channel();
                     let filename = self.scenes[self.scene].filename;
                     let path = self.directory.join(filename);
+                    let export_size = self.export_size;
                     let ctx = ctx.clone();
                     let repaint = ctx.clone();
                     ctx.send_viewport_cmd(ViewportCommand::Screenshot(ScreenshotCallback::new(
                         move |image| {
-                            let outcome = write_image(&path, &image)
+                            let outcome = write_image(&path, &image, export_size)
                                 .map_err(|err| format!("{filename}: {err}"));
                             let _ = sender.send(outcome);
                             repaint.request_repaint();
@@ -264,11 +264,15 @@ impl Capture {
 fn usage() -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
-        "usage: spenstar-gallery [--capture-dir <dir> [--wave3]]",
+        "usage: spenstar-gallery [--capture-dir <dir> [--wave3|--legacy]]",
     )
 }
 
-fn write_image(path: &Path, image: &ColorImage) -> Result<(), Box<dyn std::error::Error>> {
+fn write_image(
+    path: &Path,
+    image: &ColorImage,
+    size: [usize; 2],
+) -> Result<(), Box<dyn std::error::Error>> {
     if image.size != PIXELS {
         return Err(format!(
             "expected {} × {} pixels, got {} × {}",
@@ -279,18 +283,33 @@ fn write_image(path: &Path, image: &ColorImage) -> Result<(), Box<dyn std::error
     let pending = path.with_extension("png.part");
     let mut encoder = png::Encoder::new(
         BufWriter::new(File::create(&pending)?),
-        PIXELS[0] as u32,
-        PIXELS[1] as u32,
+        size[0] as u32,
+        size[1] as u32,
     );
     encoder.set_compression(png::Compression::Fast);
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
     encoder.set_source_srgb(png::SrgbRenderingIntent::Perceptual);
-    let pixels: Vec<_> = image
-        .pixels
-        .iter()
-        .flat_map(|pixel| pixel.to_srgba_unmultiplied())
-        .collect();
+    let pixels: Vec<u8> = if size == PIXELS {
+        image
+            .pixels
+            .iter()
+            .flat_map(|pixel| pixel.to_srgba_unmultiplied())
+            .collect()
+    } else {
+        let mut pixels = Vec::with_capacity(size[0] * size[1] * 4);
+        for pair in image.pixels.as_chunks::<{ PIXELS[0] * 2 }>().0 {
+            let (top, bottom) = pair.split_at(PIXELS[0]);
+            for (a, b) in top.as_chunks::<2>().0.iter().zip(bottom.as_chunks::<2>().0) {
+                let samples = [a[0], a[1], b[0], b[1]].map(|pixel| pixel.to_srgba_unmultiplied());
+                for channel in 0..4 {
+                    let sum: u16 = samples.iter().map(|color| u16::from(color[channel])).sum();
+                    pixels.push(((sum + 2) / 4) as u8);
+                }
+            }
+        }
+        pixels
+    };
     let mut writer = encoder.write_header()?;
     writer.write_image_data(&pixels)?;
     writer.finish()?;

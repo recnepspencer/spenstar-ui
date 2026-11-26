@@ -12,6 +12,24 @@ use crate::{
 };
 
 impl Gallery {
+    pub(super) fn show_workbench(&mut self, ui: &mut Ui) {
+        let events = self.workbench.show(ui);
+        if events.theme {
+            let mode = match self.theme.mode {
+                Mode::Light => Mode::Dark,
+                Mode::Dark => Mode::Light,
+            };
+            self.theme = Theme::new(mode, self.theme.accent);
+            self.theme.apply(ui.ctx());
+            ui.ctx().request_repaint();
+        }
+        if events.gallery {
+            self.page = Page::Overview;
+            ui.ctx().request_repaint();
+        }
+        self.show_command(ui, events.commands);
+    }
+
     pub(super) fn show_command(&mut self, ui: &Ui, activated: bool) {
         if activated {
             self.command.open();
