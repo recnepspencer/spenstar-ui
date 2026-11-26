@@ -25,6 +25,7 @@ impl Appearance {
         sidebar: &mut Sidebar,
         inspector: &mut bool,
     ) {
+        let was_open = self.open;
         let child_was_open = Popup::is_any_open(&anchor.ctx);
         let popup = widgets::popover(anchor, "Appearance", &mut self.open, 264., |ui| {
             ui.label(Type::H3.text("Appearance"));
@@ -54,6 +55,9 @@ impl Appearance {
                     && popup.response.clicked_elsewhere()))
         {
             self.open = false;
+        }
+        if was_open && !self.open {
+            anchor.ctx.request_repaint();
         }
     }
 }
@@ -136,4 +140,52 @@ pub(super) fn controls(ui: &mut Ui, theme: &mut Theme, sidebar: &mut Sidebar) {
         }
     });
     *theme = Theme::new(if mode == 0 { Mode::Light } else { Mode::Dark }, accent);
+}
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui::{Context, Event, Modifiers, PointerButton, RawInput, Rect, pos2, vec2};
+
+    use super::{Accent, Appearance, Mode, Sidebar, Theme};
+
+    #[test]
+    fn clicking_outside_appearance_repaints_the_dismissed_popup() {
+        let ctx = Context::default();
+        let mut theme = Theme::new(Mode::Dark, Accent::Blue);
+        theme.install(&ctx);
+        let mut sidebar = Sidebar::default();
+        let mut appearance = Appearance { open: true };
+        let mut draw = |events| {
+            let mut frame = ctx.run_ui(
+                RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0., 0.), vec2(800., 620.))),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    let anchor = ui.button("Appearance");
+                    appearance.show(&anchor, &mut theme, &mut sidebar, &mut false);
+                },
+            );
+            frame.textures_delta.clear();
+            appearance.open
+        };
+        assert!(draw(vec![]));
+        let outside = pos2(690., 540.);
+        assert!(draw(vec![Event::PointerMoved(outside)]));
+        let click = |pressed| Event::PointerButton {
+            pos: outside,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        assert!(draw(vec![click(true)]));
+        assert!(!draw(vec![click(false)]));
+        draw(vec![]);
+        assert!(
+            ctx.repaint_causes()
+                .iter()
+                .any(|cause| cause.file.ends_with("/appearance.rs"))
+        );
+    }
 }

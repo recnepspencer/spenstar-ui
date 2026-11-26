@@ -270,7 +270,7 @@ impl Sidebar {
                                             ui.label(
                                                 Type::SectionLabel
                                                     .text(section.label)
-                                                    .color(egui::Color32::from_rgb(113, 113, 122)),
+                                                    .color(colors.text_muted),
                                             );
                                         },
                                     );

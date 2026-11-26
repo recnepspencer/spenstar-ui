@@ -99,7 +99,7 @@ pub struct Palette {
     pub soft: Color32,
     /// Hovered subtle background.
     pub soft_hover: Color32,
-    /// Focus outline.
+    /// Outline or foreground on subtle fills.
     pub ring: Color32,
 }
 
@@ -239,8 +239,6 @@ impl Theme {
         } else {
             (n[12], n[11], n[8], rgb(0xFCFCFC), rgb(0xD4D4D8), n[5])
         };
-        let elevated = if light { surface } else { n[10] };
-        let secondary_surface = if light { n[2] } else { n[9] };
         let subtle = if light { background } else { rgb(0x121215) };
         let line = if light { n[3] } else { rgb(0x212124) };
         let neutral = if light { rgb(0xEBEBEC) } else { n[9] };
@@ -248,11 +246,17 @@ impl Theme {
         let mut primary_action = palette(accent.color());
         if accent == Accent::Blue {
             primary_action.foreground = rgb(0xFCFCFC);
-            primary_action.ring = primary_action.base;
+            if light {
+                primary_action.ring = rgb(0x035EB0);
+            }
         }
         let mut success = palette(rgb(0x17C964));
         success.soft = mix(surface, rgb(0x14C965), 0.15);
         success.ring = if light { rgb(0x2B7745) } else { rgb(0x7AE8AD) };
+        let mut warning = palette(rgb(if light { 0xF5A524 } else { 0xF7B750 }));
+        if light {
+            warning.ring = rgb(0x8A5600);
+        }
         let mut danger = palette(rgb(if light { 0xFF383C } else { 0xDB3B3E }));
         danger.ring = if light { rgb(0xA91F29) } else { rgb(0xFF8185) };
         Self {
@@ -261,9 +265,9 @@ impl Theme {
             colors: Semantics {
                 background,
                 surface,
-                surface_elevated: elevated,
+                surface_elevated: if light { surface } else { n[10] },
                 surface_subtle: subtle,
-                surface_secondary: secondary_surface,
+                surface_secondary: if light { n[2] } else { n[9] },
                 surface_tertiary: if light { rgb(0xEAEAEB) } else { rgb(0x2E2E32) },
                 field_hover: rgb(if light { 0xE8E8EA } else { 0x2E2E32 }),
                 overlay: surface,
@@ -283,9 +287,16 @@ impl Theme {
                 },
                 accent: primary_action,
                 success,
-                warning: palette(rgb(if light { 0xF5A524 } else { 0xF7B750 })),
+                warning,
                 danger,
             },
+        }
+    }
+
+    pub(crate) fn focus_color(self) -> Color32 {
+        match self.accent {
+            Accent::Blue => self.colors.accent.base,
+            _ => self.colors.accent.ring,
         }
     }
 
@@ -318,7 +329,7 @@ impl Theme {
         visuals.window_stroke = Stroke::new(1., c.border_subtle);
         visuals.window_shadow = self.shadow();
         visuals.popup_shadow = self.shadow();
-        visuals.extreme_bg_color = c.surface;
+        visuals.extreme_bg_color = c.surface_secondary;
         visuals.faint_bg_color = c.surface_subtle;
         visuals.code_bg_color = c.surface_subtle;
         visuals.hyperlink_color = c.accent.ring;

@@ -199,7 +199,7 @@ impl Demo {
     fn dialog(&mut self, ctx: &Context) {
         let colors = Theme::current(ctx).colors;
         let modal =
-            Modal::new(Id::unique("spenstar-gallery/button-dialog")).backdrop_color(colors.overlay);
+            Modal::new(Id::unique("spenstar-gallery/button-dialog")).backdrop_color(colors.scrim);
         let response = modal.show(ctx, |ui| {
             Toolbar::show(ui, |ui| {
                 ui.label(Type::H3.text("Example dialog"));
@@ -209,6 +209,50 @@ impl Demo {
         });
         if response.inner || response.should_close() {
             self.dialog_open = false;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui::{Pos2, RawInput, Rect, epaint::Shape, vec2};
+    use spenstar_ui::theme::{Accent, Mode};
+
+    use super::{Context, Demo, Theme};
+
+    #[test]
+    fn example_dialog_paints_the_translucent_scrim() {
+        for mode in [Mode::Light, Mode::Dark] {
+            let ctx = Context::default();
+            let theme = Theme::new(mode, Accent::Blue);
+            theme.install(&ctx);
+            ctx.all_styles_mut(|style| style.animation_time = 0.);
+            let mut demo = Demo {
+                dialog_open: true,
+                ..Demo::default()
+            };
+            let bounds = Rect::from_min_size(Pos2::ZERO, vec2(640., 480.));
+            let mut draw = || {
+                let mut frame = ctx.run_ui(
+                    RawInput {
+                        screen_rect: Some(bounds),
+                        ..RawInput::default()
+                    },
+                    |ui| demo.dialog(ui.ctx()),
+                );
+                frame.textures_delta.clear();
+                frame
+            };
+            draw();
+            let frame = draw();
+            assert!(theme.colors.scrim.a() < 255);
+            assert!(
+                frame.shapes.iter().any(|clipped| {
+                    matches!(&clipped.shape, Shape::Rect(rect)
+                    if rect.rect == bounds && rect.fill == theme.colors.scrim)
+                }),
+                "{mode:?}: missing modal scrim"
+            );
         }
     }
 }

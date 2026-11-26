@@ -10,14 +10,17 @@ pub struct MainContent;
 impl MainContent {
     /// Fill the remaining shell area.
     pub fn show<R>(ui: &mut Ui, content: impl FnOnce(&mut Ui) -> R) -> R {
-        let color = Theme::current(ui.ctx()).colors.background;
+        let colors = Theme::current(ui.ctx()).colors;
         CentralPanel::no_frame()
             .frame(
                 Frame::new()
-                    .fill(color)
+                    .fill(colors.background)
                     .inner_margin(Margin::symmetric(24, 0)),
             )
-            .show(ui, content)
+            .show(ui, |ui| {
+                ui.visuals_mut().extreme_bg_color = colors.surface;
+                content(ui)
+            })
             .inner
     }
 }

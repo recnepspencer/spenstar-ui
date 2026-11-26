@@ -155,7 +155,7 @@ impl EntryStyle {
             let ink = if self.invalid {
                 c.danger.base
             } else {
-                c.accent.ring
+                theme.focus_color()
             };
             painter.rect_stroke(
                 rect.expand(1.),
