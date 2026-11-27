@@ -66,20 +66,21 @@ pub(super) fn draw(
     columns: &[Column<'_>],
     widths: &[f32],
     full: f32,
-    selection: bool,
+    (selection, flush): (bool, bool),
 ) -> bool {
     let theme = Theme::current(ui.ctx());
     let c = theme.colors;
-    let fill = match theme.mode {
-        Mode::Light => Color32::from_rgb(244, 244, 245),
-        Mode::Dark => Color32::from_rgb(20, 20, 22),
+    let fill = match (flush, theme.mode) {
+        (true, _) => c.surface_subtle,
+        (false, Mode::Light) => Color32::from_rgb(244, 244, 245),
+        (false, Mode::Dark) => Color32::from_rgb(20, 20, 22),
     };
     let (rect, _) = ui.allocate_exact_size(vec2(full, 36.), Sense::hover());
     ui.painter().rect_filled(
         rect,
         egui::CornerRadius {
-            nw: 15,
-            ne: 15,
+            nw: if flush { 0 } else { 15 },
+            ne: if flush { 0 } else { 15 },
             ..Default::default()
         },
         fill,
@@ -110,6 +111,13 @@ pub(super) fn draw(
     let mut sort = None;
     for (index, (column, &width)) in columns.iter().zip(widths).enumerate() {
         let cell = Rect::from_min_size(pos2(x, rect.top()), vec2(width, rect.height()));
+        if flush && x > rect.left() {
+            ui.painter().vline(
+                x,
+                (rect.top() + 8.)..=(rect.bottom() - 8.),
+                Stroke::new(1., c.divider),
+            );
+        }
         let handle = Rect::from_center_size(
             pos2(cell.right() - 3., cell.center().y),
             vec2(8., cell.height()),
@@ -141,7 +149,13 @@ pub(super) fn draw(
             .filter(|sort| sort.column == index)
             .map(|sort| sort.direction);
         let mut text = cell.shrink2(vec2(INSET.min(width * 0.2), 0.));
-        if direction.is_some() && text.width() > 16. {
+        let sort_icon = match direction {
+            Some(SortDirection::Asc) => Some(Icon::ChevronUp),
+            Some(SortDirection::Desc) => Some(Icon::ChevronDown),
+            None if flush && column.sortable => Some(Icon::ChevronsUpDown),
+            None => None,
+        };
+        if sort_icon.is_some() && text.width() > 16. {
             text.max.x -= 16.;
         }
         let mut header = ui.new_child(
@@ -155,11 +169,7 @@ pub(super) fn draw(
                 .selectable(false)
                 .truncate(),
         );
-        if let Some(direction) = direction {
-            let icon = match direction {
-                SortDirection::Asc => Icon::ChevronUp,
-                SortDirection::Desc => Icon::ChevronDown,
-            };
+        if let Some(icon) = sort_icon {
             let _ = icon.svg().paint(
                 ui,
                 Rect::from_center_size(pos2(click.right() - 8., click.center().y), vec2(13., 13.)),
