@@ -75,6 +75,38 @@ impl<'a> DataTable<'a> {
         ui: &mut Ui,
         state: &mut TableState,
         source: TableRows<F, I, C>,
+        cell: impl FnMut(&mut Ui, usize, usize),
+    ) -> TableResponse
+    where
+        F: FnMut(usize) -> bool,
+        I: FnMut(usize) -> u64,
+        C: FnMut(usize, usize, usize) -> Ordering,
+    {
+        self.show_with_shell(ui, state, source, false, cell)
+    }
+
+    /// Render a flush table with a themed header, column rules, and no outer card.
+    pub fn show_flush<F, I, C>(
+        &self,
+        ui: &mut Ui,
+        state: &mut TableState,
+        source: TableRows<F, I, C>,
+        cell: impl FnMut(&mut Ui, usize, usize),
+    ) -> TableResponse
+    where
+        F: FnMut(usize) -> bool,
+        I: FnMut(usize) -> u64,
+        C: FnMut(usize, usize, usize) -> Ordering,
+    {
+        self.show_with_shell(ui, state, source, true, cell)
+    }
+
+    fn show_with_shell<F, I, C>(
+        &self,
+        ui: &mut Ui,
+        state: &mut TableState,
+        source: TableRows<F, I, C>,
+        flush: bool,
         mut cell: impl FnMut(&mut Ui, usize, usize),
     ) -> TableResponse
     where
@@ -82,7 +114,7 @@ impl<'a> DataTable<'a> {
         I: FnMut(usize) -> u64,
         C: FnMut(usize, usize, usize) -> Ordering,
     {
-        ui.push_id(self.id, |ui| self.draw(ui, state, source, &mut cell))
+        ui.push_id(self.id, |ui| self.draw(ui, state, source, flush, &mut cell))
             .inner
     }
 
@@ -91,6 +123,7 @@ impl<'a> DataTable<'a> {
         ui: &mut Ui,
         state: &mut TableState,
         source: TableRows<F, I, C>,
+        flush: bool,
         cell: &mut impl FnMut(&mut Ui, usize, usize),
     ) -> TableResponse
     where
@@ -129,6 +162,11 @@ impl<'a> DataTable<'a> {
             } else {
                 egui::epaint::Shadow::NONE
             });
+        let frame = if flush {
+            Frame::new().fill(c.surface)
+        } else {
+            frame
+        };
         frame.show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.spacing_mut().item_spacing.y = 0.;
@@ -152,7 +190,14 @@ impl<'a> DataTable<'a> {
                     ui.set_width(total);
                     output.sort_changed = ui
                         .add_enabled_ui(!self.loading, |ui| {
-                            header::draw(ui, state, self.columns, &widths, total, self.selectable)
+                            header::draw(
+                                ui,
+                                state,
+                                self.columns,
+                                &widths,
+                                total,
+                                (self.selectable, flush),
+                            )
                         })
                         .inner;
                     if self.loading {
@@ -163,7 +208,7 @@ impl<'a> DataTable<'a> {
                     } else {
                         let mut area = ScrollArea::vertical()
                             .max_height(self.safe_height())
-                            .auto_shrink([false, true]);
+                            .auto_shrink([false, !flush]);
                         if updated || viewport_changed {
                             area = area.vertical_scroll_offset(0.);
                         }
@@ -187,8 +232,12 @@ impl<'a> DataTable<'a> {
                 Frame::new()
                     .inner_margin(Margin::symmetric(12, 6))
                     .show(ui, |ui| {
-                        output.page_changed =
-                            Pagination::new(state.filtered_count(), size).show(ui, &mut state.page);
+                        let pagination = Pagination::new(state.filtered_count(), size);
+                        output.page_changed = if flush {
+                            pagination.show_compact(ui, &mut state.page)
+                        } else {
+                            pagination.show(ui, &mut state.page)
+                        };
                     });
             }
         });

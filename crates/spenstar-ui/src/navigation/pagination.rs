@@ -1,4 +1,4 @@
-use egui::{Align, Ui};
+use egui::{Align, Layout, Ui};
 
 use crate::{
     Theme,
@@ -118,6 +118,46 @@ impl Pagination {
                     .halign(Align::Min),
                 );
             }
+        });
+        old != *page
+    }
+    /// Render an item interval at the left and compact page controls at the right.
+    pub fn show_compact(&self, ui: &mut Ui, page: &mut usize) -> bool {
+        let old = *page;
+        let count = self.page_count().max(1);
+        *page = (*page).min(count - 1);
+        let size = self.per_page.max(1);
+        let offset = *page * size;
+        let start = (offset + 1).min(self.total);
+        let end = offset.saturating_add(size).min(self.total);
+        let ink = Theme::current(ui.ctx()).colors.text_secondary;
+        ui.horizontal(|ui| {
+            if self.summary {
+                ui.label(
+                    Type::Small
+                        .text(format!("{start}–{end} of {}", self.total))
+                        .color(ink),
+                );
+            }
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let next = Button::new("Next page")
+                    .icon_only(Icon::ChevronRight)
+                    .enabled(*page + 1 < count);
+                let previous = Button::new("Previous page")
+                    .icon_only(Icon::ChevronLeft)
+                    .enabled(*page > 0);
+                if control(next, false).show(ui).clicked() {
+                    *page += 1;
+                }
+                if control(previous, false).show(ui).clicked() {
+                    *page -= 1;
+                }
+                ui.label(
+                    Type::Small
+                        .text(format!("Page {} of {count}", *page + 1))
+                        .color(ink),
+                );
+            });
         });
         old != *page
     }
